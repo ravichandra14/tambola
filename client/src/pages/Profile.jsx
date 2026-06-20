@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { updateProfile } from '../api/auth';
+import { updateProfile, changePassword } from '../api/auth';
 import toast from 'react-hot-toast';
 import Sidebar from '../components/common/Sidebar';
 import { FiEdit2, FiCheck, FiBarChart2, FiUsers, FiStar } from 'react-icons/fi';
@@ -14,6 +14,34 @@ const Profile = () => {
   const [username, setUsername] = useState(user?.username || '');
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar || '🎯');
   const [saving, setSaving] = useState(false);
+
+  // Password state
+  const [passForm, setPassForm] = useState({ current: '', new: '', confirm: '' });
+  const [changingPass, setChangingPass] = useState(false);
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (!passForm.current || !passForm.new || !passForm.confirm) {
+      return toast.error('Please fill all password fields');
+    }
+    if (passForm.new !== passForm.confirm) {
+      return toast.error('New passwords do not match');
+    }
+    if (passForm.new.length < 6) {
+      return toast.error('New password must be at least 6 characters');
+    }
+
+    setChangingPass(true);
+    try {
+      await changePassword({ currentPassword: passForm.current, newPassword: passForm.new });
+      toast.success('Password changed successfully! 🔐');
+      setPassForm({ current: '', new: '', confirm: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to change password');
+    } finally {
+      setChangingPass(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!username.trim()) return toast.error('Username cannot be empty');
@@ -149,6 +177,57 @@ const Profile = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Security Section */}
+        <div style={{ marginTop: '2rem' }}>
+          <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: '#94a3b8', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.875rem' }}>
+            Security
+          </h3>
+          <div className="card" style={{ background: 'linear-gradient(135deg, rgba(30,42,74,0.8), rgba(15,15,26,0.6))', border: '1px solid rgba(244,63,94,0.1)' }}>
+            <h4 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: '#e2e8f0', margin: '0 0 1rem 0' }}>Change Password</h4>
+            
+            <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '400px' }}>
+              <div>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '0.375rem' }}>Current Password</label>
+                <input 
+                  type="password" 
+                  className="input-field" 
+                  placeholder="••••••••" 
+                  value={passForm.current}
+                  onChange={(e) => setPassForm({ ...passForm, current: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '0.375rem' }}>New Password</label>
+                <input 
+                  type="password" 
+                  className="input-field" 
+                  placeholder="••••••••" 
+                  value={passForm.new}
+                  onChange={(e) => setPassForm({ ...passForm, new: e.target.value })}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '0.375rem' }}>Confirm New Password</label>
+                <input 
+                  type="password" 
+                  className="input-field" 
+                  placeholder="••••••••" 
+                  value={passForm.confirm}
+                  onChange={(e) => setPassForm({ ...passForm, confirm: e.target.value })}
+                />
+              </div>
+              <button 
+                type="submit" 
+                className="btn-primary" 
+                style={{ alignSelf: 'flex-start', marginTop: '0.5rem', background: 'linear-gradient(135deg, #f43f5e, #e11d48)' }} 
+                disabled={changingPass}
+              >
+                {changingPass ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
+          </div>
         </div>
       </main>
     </div>

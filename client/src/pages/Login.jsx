@@ -48,7 +48,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', fontWeight: 500, marginBottom: '0.375rem' }}>
-                Email
+                Email or Username
               </label>
               <div style={{ position: 'relative' }}>
                 <FiMail style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} size={16} />
@@ -56,8 +56,8 @@ const Login = () => {
                   id="login-email"
                   className="input-field"
                   style={{ paddingLeft: '2.5rem' }}
-                  type="email"
-                  placeholder="you@example.com"
+                  type="text"
+                  placeholder="you@example.com or username"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
