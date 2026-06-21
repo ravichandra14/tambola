@@ -18,6 +18,8 @@ const roomSchema = new mongoose.Schema(
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         joinedAt: { type: Date, default: Date.now },
         socketId: { type: String },
+        connected: { type: Boolean, default: false },
+        lastSeenAt: { type: Date, default: Date.now },
       },
     ],
     status: {
@@ -26,11 +28,11 @@ const roomSchema = new mongoose.Schema(
       default: 'waiting',
     },
     pointConfig: {
-      earlyFive: { type: Number, default: 10 },
-      topLine: { type: Number, default: 20 },
-      middleLine: { type: Number, default: 20 },
-      bottomLine: { type: Number, default: 20 },
-      fullHouse: { type: Number, default: 50 },
+      earlyFive: { type: Number, default: 10, min: 0, max: 999 },
+      topLine: { type: Number, default: 20, min: 0, max: 999 },
+      middleLine: { type: Number, default: 20, min: 0, max: 999 },
+      bottomLine: { type: Number, default: 20, min: 0, max: 999 },
+      fullHouse: { type: Number, default: 50, min: 0, max: 999 },
     },
     numberCallingMode: {
       type: String,

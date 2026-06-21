@@ -5,6 +5,9 @@ const Leaderboard = require('../models/Leaderboard');
 const User = require('../models/User');
 const { generateTicket } = require('../utils/ticketGenerator');
 const { getIO } = require('../config/socket');
+const { getRoomAccess, publicGame } = require('../utils/access');
+const { callNextNumber } = require('../utils/gameCalls');
+const { stopAutoCall } = require('../socket/handlers/gameHandlers');
 
 // @desc  Start game
 // @route POST /api/games/start
@@ -14,7 +17,6 @@ const startGame = async (req, res, next) => {
     const room = await Room.findById(roomId).populate('players.user', 'username email');
 
     if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
-    console.log('StartGame Debug -> room.host:', room.host, 'req.user._id:', req.user._id);
     if (room.host.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Only host can start the game' });
     }
@@ -27,7 +29,11 @@ const startGame = async (req, res, next) => {
 
     // Build number pool 1-90 and shuffle
     const numbers = Array.from({ length: 90 }, (_, i) => i + 1);
-    const shuffled = numbers.sort(() => Math.random() - 0.5);
+    const shuffled = [...numbers];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+    }
 
     const game = await Game.create({
       room: room._id,
@@ -112,9 +118,11 @@ const startGame = async (req, res, next) => {
 // @route GET /api/games/:id
 const getGame = async (req, res, next) => {
   try {
-    const game = await Game.findById(req.params.id).populate('room').populate('host', 'username');
+    const game = await Game.findById(req.params.id).populate('host', 'username');
     if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
-    res.json({ success: true, game });
+    const access = await getRoomAccess(game.room, req.user._id);
+    if (!access.role) return res.status(403).json({ success: false, message: 'Not a game participant' });
+    res.json({ success: true, game: publicGame(game, access.role) });
   } catch (error) {
     next(error);
   }
@@ -136,21 +144,16 @@ const getMyTicket = async (req, res, next) => {
 // @route PATCH /api/games/:id/pause
 const pauseGame = async (req, res, next) => {
   try {
-    const game = await Game.findById(req.params.id);
-    if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
-    if (game.host.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Only host can pause the game' });
-    }
+    const game = await Game.findOneAndUpdate(
+      { _id: req.params.id, host: req.user._id, status: 'active' },
+      { $set: { status: 'paused', autoCallEnabled: false, nextAutoCallAt: null } },
+      { new: true }
+    );
+    if (!game) return res.status(409).json({ success: false, message: 'Game cannot be paused' });
 
-    game.status = 'paused';
-    await game.save();
-
-    const room = await Room.findById(game.room);
-    room.status = 'paused';
-    await room.save();
-
+    await stopAutoCall(game._id);
+    await Room.updateOne({ _id: game.room }, { $set: { status: 'paused' } });
     getIO().to(game.roomCode).emit('game_paused', { gameId: game._id });
-
     res.json({ success: true, message: 'Game paused' });
   } catch (error) {
     next(error);
@@ -161,21 +164,15 @@ const pauseGame = async (req, res, next) => {
 // @route PATCH /api/games/:id/resume
 const resumeGame = async (req, res, next) => {
   try {
-    const game = await Game.findById(req.params.id);
-    if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
-    if (game.host.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Only host can resume the game' });
-    }
+    const game = await Game.findOneAndUpdate(
+      { _id: req.params.id, host: req.user._id, status: 'paused' },
+      { $set: { status: 'active' } },
+      { new: true }
+    );
+    if (!game) return res.status(409).json({ success: false, message: 'Game cannot be resumed' });
 
-    game.status = 'active';
-    await game.save();
-
-    const room = await Room.findById(game.room);
-    room.status = 'active';
-    await room.save();
-
+    await Room.updateOne({ _id: game.room }, { $set: { status: 'active' } });
     getIO().to(game.roomCode).emit('game_resumed', { gameId: game._id });
-
     res.json({ success: true, message: 'Game resumed' });
   } catch (error) {
     next(error);
@@ -186,42 +183,38 @@ const resumeGame = async (req, res, next) => {
 // @route PATCH /api/games/:id/end
 const endGame = async (req, res, next) => {
   try {
-    const game = await Game.findById(req.params.id);
-    if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
-    if (game.host.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Only host can end the game' });
+    const game = await Game.findOneAndUpdate(
+      { _id: req.params.id, host: req.user._id, status: { $in: ['active', 'paused'] } },
+      { $set: { status: 'ended', endedAt: new Date(), autoCallEnabled: false, nextAutoCallAt: null } },
+      { new: true }
+    );
+    if (!game) {
+      const existing = await Game.findById(req.params.id);
+      if (!existing) return res.status(404).json({ success: false, message: 'Game not found' });
+      if (existing.host.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ success: false, message: 'Only host can end the game' });
+      }
+      return res.status(409).json({ success: false, message: 'Game already ended' });
     }
 
-    game.status = 'ended';
-    game.endedAt = new Date();
-    await game.save();
-
-    const room = await Room.findById(game.room);
-    room.status = 'ended';
-    await room.save();
+    await stopAutoCall(game._id);
+    await Room.updateOne({ _id: game.room }, { $set: { status: 'ended' } });
 
     const leaderboard = await Leaderboard.findOne({ game: game._id });
     if (leaderboard) {
       leaderboard.entries.sort((a, b) => b.score - a.score);
-      leaderboard.entries.forEach((e, i) => (e.rank = i + 1));
+      leaderboard.entries.forEach((entry, index) => { entry.rank = index + 1; });
       leaderboard.finalizedAt = new Date();
       await leaderboard.save();
-    }
-
-    // Update all players stats
-    if (leaderboard) {
-      for (const entry of leaderboard.entries) {
-        await User.findByIdAndUpdate(entry.player, {
-          $inc: { gamesPlayed: 1, totalScore: entry.score, claimsWon: entry.claimsWon.length },
-        });
-      }
+      await Promise.all(leaderboard.entries.map((entry) => User.findByIdAndUpdate(entry.player, {
+        $inc: { gamesPlayed: 1, totalScore: entry.score, claimsWon: entry.claimsWon.length },
+      })));
     }
 
     getIO().to(game.roomCode).emit('game_ended', {
       gameId: game._id,
-      finalScoreboard: leaderboard ? leaderboard.entries : [],
+      finalScoreboard: leaderboard?.entries || [],
     });
-
     res.json({ success: true, message: 'Game ended', leaderboard: leaderboard?.entries || [] });
   } catch (error) {
     next(error);
@@ -232,30 +225,20 @@ const endGame = async (req, res, next) => {
 // @route POST /api/games/:id/call-number
 const callNumber = async (req, res, next) => {
   try {
-    const game = await Game.findById(req.params.id);
-    if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
-    if (game.host.toString() !== req.user._id.toString()) {
+    const existing = await Game.findById(req.params.id).select('host status');
+    if (!existing) return res.status(404).json({ success: false, message: 'Game not found' });
+    if (existing.host.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Only host can call numbers' });
     }
-    if (game.status !== 'active') {
-      return res.status(400).json({ success: false, message: 'Game is not active' });
-    }
-    if (game.remainingNumbers.length === 0) {
-      return res.status(400).json({ success: false, message: 'All numbers have been called' });
-    }
-
-    const number = game.remainingNumbers.shift();
-    game.calledNumbers.push(number);
-    game.currentNumber = number;
-    await game.save();
+    const game = await callNextNumber(req.params.id);
+    if (!game) return res.status(409).json({ success: false, message: 'Game is inactive or all numbers were called' });
 
     getIO().to(game.roomCode).emit('number_called', {
-      number,
+      number: game.currentNumber,
       calledNumbers: game.calledNumbers,
       remaining: game.remainingNumbers.length,
     });
-
-    res.json({ success: true, number, calledNumbers: game.calledNumbers });
+    res.json({ success: true, number: game.currentNumber, calledNumbers: game.calledNumbers });
   } catch (error) {
     next(error);
   }

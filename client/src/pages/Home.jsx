@@ -30,7 +30,7 @@ const Home = () => {
   const navigate = useNavigate();
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [joinCode, setJoinCode] = useState('');
-  const [joiningRoom, setJoiningRoom] = useState(false);
+  const [joiningRoom] = useState(false);
 
   const handleCreateRoom = async () => {
     setCreatingRoom(true);

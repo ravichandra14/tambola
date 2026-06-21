@@ -6,7 +6,6 @@ import {
   FiHome, FiClock, FiBarChart2,
   FiUser, FiLogOut, FiWifi, FiWifiOff, FiMenu, FiX
 } from 'react-icons/fi';
-import { GiTrophy } from 'react-icons/gi';
 
 const navItems = [
   { to: '/', icon: FiHome, label: 'Home' },

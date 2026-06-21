@@ -10,6 +10,10 @@ const { getIO } = require('../config/socket');
 const submitClaim = async (req, res, next) => {
   try {
     const { gameId, claimType } = req.body;
+    const allowedClaims = ['earlyFive', 'topLine', 'middleLine', 'bottomLine', 'fullHouse'];
+    if (!allowedClaims.includes(claimType)) {
+      return res.status(400).json({ success: false, message: 'Invalid claim type' });
+    }
 
     const game = await Game.findById(gameId);
     if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
@@ -110,18 +114,21 @@ const approveClaim = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Claim failed validation' });
     }
 
-    // Mark prize as claimed
-    if (game.claimedPrizes[claim.claimType]) {
+    // Reserve the prize atomically so concurrent approvals cannot both win.
+    const prizePath = 'claimedPrizes.' + claim.claimType;
+    const reservedGame = await Game.findOneAndUpdate(
+      { _id: game._id, [prizePath]: { $ne: true } },
+      { $set: { [prizePath]: true } },
+      { new: true }
+    );
+    if (!reservedGame) {
       claim.status = 'rejected';
       claim.resolvedAt = new Date();
       await claim.save();
-      return res.status(400).json({ success: false, message: 'Prize already awarded to another player' });
+      return res.status(409).json({ success: false, message: 'Prize already awarded to another player' });
     }
 
-    game.claimedPrizes[claim.claimType] = true;
-    await game.save();
-
-    const points = game.pointConfig[claim.claimType] || 0;
+    const points = reservedGame.pointConfig[claim.claimType] || 0;
     claim.status = 'approved';
     claim.pointsAwarded = points;
     claim.resolvedAt = new Date();
@@ -194,6 +201,11 @@ const rejectClaim = async (req, res, next) => {
 // @route GET /api/claims/game/:gameId
 const getGameClaims = async (req, res, next) => {
   try {
+    const game = await Game.findById(req.params.gameId).select('host');
+    if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
+    if (game.host.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only the host can view pending claims' });
+    }
     const claims = await Claim.find({ game: req.params.gameId, status: 'pending' })
       .populate('player', 'username avatar')
       .sort({ submittedAt: 1 });

@@ -19,7 +19,7 @@ import { FiUsers, FiBarChart2, FiMessageCircle } from 'react-icons/fi';
 const PlayerDashboard = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { socket, emit } = useSocket();
+  const { socket, emit, connected } = useSocket();
   const navigate = useNavigate();
 
   const [room, setRoom] = useState(null);
@@ -59,7 +59,7 @@ const PlayerDashboard = () => {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
-    } catch (_) {}
+    } catch { /* Optional browser feature unavailable. */ }
   };
 
   const code = searchParams.get('code');
@@ -88,7 +88,10 @@ const PlayerDashboard = () => {
 
   useEffect(() => {
     if (!socket || !code || !joined) return;
-    emit('join_room', { roomCode: code, isHost: false });
+    if (!connected) return;
+    emit('join_room', { roomCode: code }, (result) => {
+      if (!result?.success) toast.error(result?.error || 'Unable to rejoin room');
+    });
 
     const onRoomJoined = (data) => {
       setRoom(data.room); setGameStatus(data.room.status);
@@ -101,6 +104,7 @@ const PlayerDashboard = () => {
         setGameStatus(data.game.status);
       }
       if (data.chatHistory) setChatMessages(data.chatHistory);
+      if (data.leaderboard) setLeaderboard(data.leaderboard);
     };
 
     const onGameStarted = async (data) => {
@@ -110,7 +114,7 @@ const PlayerDashboard = () => {
       try {
         const res = await getMyTicket(data.game._id);
         setTicket(res.data.ticket);
-      } catch (_) {}
+      } catch { /* Optional browser feature unavailable. */ }
     };
 
     const onNumberCalled = (data) => {
@@ -185,7 +189,7 @@ const PlayerDashboard = () => {
       socket.off('player_removed', onPlayerRemoved);
       socket.off('player_joined', onPlayerJoined);
     };
-  }, [socket, code, joined, emit, user]);
+  }, [socket, code, joined, emit, user, connected, navigate]);
 
   const isActive = gameStatus === 'active';
   const isPaused = gameStatus === 'paused';

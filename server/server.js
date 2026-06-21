@@ -8,6 +8,7 @@ const morgan = require('morgan');
 const connectDB = require('./src/config/db');
 const { initSocket } = require('./src/config/socket');
 const { initSocketHandlers } = require('./src/socket/index');
+const { restoreAutoCallTimers } = require('./src/socket/handlers/gameHandlers');
 const errorHandler = require('./src/middleware/errorHandler');
 
 // Routes
@@ -16,16 +17,13 @@ const roomRoutes = require('./src/routes/rooms');
 const gameRoutes = require('./src/routes/games');
 const claimRoutes = require('./src/routes/claims');
 const historyRoutes = require('./src/routes/history');
+const leaderboardRoutes = require('./src/routes/leaderboard');
 
 const app = express();
 const httpServer = http.createServer(app);
 
 // Initialize Socket.IO
 const io = initSocket(httpServer);
-initSocketHandlers(io);
-
-// Connect DB
-connectDB();
 
 // Middleware
 app.use(helmet({ crossOriginEmbedderPolicy: false }));
@@ -50,6 +48,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 // 404
 app.use((req, res) => {
@@ -60,8 +59,32 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-});
 
-module.exports = { app, httpServer };
+const start = async () => {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must contain at least 32 characters');
+  }
+  await connectDB();
+  initSocketHandlers(io);
+  await restoreAutoCallTimers(io);
+  httpServer.listen(PORT, () => {
+    console.log('Server running on port ' + PORT + ' in ' + (process.env.NODE_ENV || 'development') + ' mode');
+  });
+};
+
+const shutdown = () => {
+  httpServer.close(() => {
+    require('mongoose').connection.close().finally(() => process.exit(0));
+  });
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+if (require.main === module) {
+  start().catch((error) => {
+    console.error('Server startup failed: ' + error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { app, httpServer, start };

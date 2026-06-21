@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { FiSend } from 'react-icons/fi';
 
 const Chat = ({ roomCode, initialMessages = [] }) => {
-  const { socket, emit } = useSocket();
+  const { socket, emit, connected } = useSocket();
   const { user } = useAuth();
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
@@ -29,8 +29,9 @@ const Chat = ({ roomCode, initialMessages = [] }) => {
 
   const handleSend = () => {
     if (!input.trim() || !roomCode) return;
-    emit('send_chat', { roomCode, message: input.trim() });
-    setInput('');
+    emit('send_chat', { roomCode, message: input.trim() }, (result) => {
+      if (result?.success) setInput('');
+    });
   };
 
   const handleKeyPress = (e) => {
@@ -116,7 +117,7 @@ const Chat = ({ roomCode, initialMessages = [] }) => {
           className="btn-primary"
           style={{ padding: '0.5rem 0.875rem', flexShrink: 0 }}
           onClick={handleSend}
-          disabled={!input.trim()}
+          disabled={!input.trim() || !connected}
         >
           <FiSend size={16} />
         </button>

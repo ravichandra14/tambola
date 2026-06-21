@@ -11,11 +11,13 @@ import PlayerDashboard from './pages/PlayerDashboard';
 import Leaderboard from './pages/Leaderboard';
 import GameHistory from './pages/GameHistory';
 import Profile from './pages/Profile';
+import ConnectionBanner from './components/common/ConnectionBanner';
 
 const App = () => {
   return (
     <AuthProvider>
       <SocketProvider>
+        <ConnectionBanner />
         <Router>
           <Routes>
             {/* Public routes */}

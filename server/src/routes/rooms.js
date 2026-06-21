@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { createRoom, getRoomByCode, joinRoom, updateRoom, removePlayer } = require('../controllers/roomController');
+const { createRoom, getRoomByCode, getRoomState, joinRoom, updateRoom, removePlayer } = require('../controllers/roomController');
 const { protect } = require('../middleware/auth');
 
 router.post('/create', protect, createRoom);
+router.get('/:code/state', protect, getRoomState);
 router.get('/:code', protect, getRoomByCode);
 router.post('/:code/join', protect, joinRoom);
 router.put('/:id', protect, updateRoom);

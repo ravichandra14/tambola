@@ -1,18 +1,22 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { callNumber, pauseGame, resumeGame, endGame } from '../../api/games';
-import { updateRoom } from '../../api/rooms';
+import { pauseGame, resumeGame, endGame } from '../../api/games';
 import { useSocket } from '../../context/SocketContext';
-import { FiPlay, FiPause, FiSquare, FiSkipForward, FiZap } from 'react-icons/fi';
+import { FiPlay, FiPause, FiSkipForward, FiZap } from 'react-icons/fi';
 
-const NumberCaller = ({ game, room, onGameUpdate, onRoomUpdate }) => {
+const NumberCaller = ({ game, room, onGameUpdate }) => {
   const { socket, emit } = useSocket();
   const [loading, setLoading] = useState(false);
   const [autoMode, setAutoMode] = useState(room?.numberCallingMode === 'auto');
   const [autoRunning, setAutoRunning] = useState(false);
   const [interval, setIntervalVal] = useState(room?.autoInterval || 5);
   const [currentDisplay, setCurrentDisplay] = useState(game?.currentNumber || null);
+
+  useEffect(() => {
+    setAutoRunning(Boolean(game?.autoCallEnabled));
+    setAutoMode(game?.numberCallingMode === 'auto' || Boolean(game?.autoCallEnabled));
+  }, [game?.autoCallEnabled, game?.numberCallingMode]);
 
   useEffect(() => {
     if (!socket) return;
@@ -37,9 +41,12 @@ const NumberCaller = ({ game, room, onGameUpdate, onRoomUpdate }) => {
       setAutoRunning(false);
       toast('Auto-calling stopped', { icon: '⏸️' });
     } else {
-      // Update interval setting
-      await updateRoom(room._id, { numberCallingMode: 'auto', autoInterval: interval });
-      emit('start_auto_call', { roomCode: room.roomCode, gameId: game._id });
+      emit('start_auto_call', { gameId: game._id, interval }, (result) => {
+        if (!result?.success) {
+          setAutoRunning(false);
+          toast.error(result?.error || 'Failed to start auto-calling');
+        }
+      });
       setAutoRunning(true);
       toast(`Auto-calling every ${interval}s`, { icon: '⚡' });
     }

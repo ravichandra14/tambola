@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useSocket } from '../../context/SocketContext';
 import { FiUserX } from 'react-icons/fi';
 
-const PlayerList = ({ players = [], hostId, roomId, roomCode, gameActive = false }) => {
+const PlayerList = ({ players = [], hostId, roomCode, gameActive = false }) => {
   const { emit } = useSocket();
   const [removing, setRemoving] = useState(null);
 
@@ -58,6 +58,9 @@ const PlayerList = ({ players = [], hostId, roomId, roomCode, gameActive = false
                   </div>
                   <div>
                     <div style={{ color: '#e2e8f0', fontSize: '0.875rem', fontWeight: 500 }}>{player.username}</div>
+                    <div style={{ color: entry.connected ? '#4ade80' : '#64748b', fontSize: '0.68rem' }}>
+                      {entry.connected ? 'Online' : 'Offline'}
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

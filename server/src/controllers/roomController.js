@@ -1,11 +1,27 @@
 const Room = require('../models/Room');
+const Game = require('../models/Game');
+const { stopAutoCall } = require('../socket/handlers/gameHandlers');
 const { generateRoomCode } = require('../utils/roomCodeGenerator');
+const { getRoomAccess } = require('../utils/access');
 
 // @desc  Create a new room
 // @route POST /api/rooms/create
 const createRoom = async (req, res, next) => {
   try {
-    // Close any existing active rooms by this host
+    // Close existing rooms and persisted callers owned by this host.
+    const previousRooms = await Room.find({
+      host: req.user._id,
+      status: { $in: ['waiting', 'active', 'paused'] },
+    }).select('currentGame');
+    for (const previousRoom of previousRooms) {
+      if (previousRoom.currentGame) {
+        await stopAutoCall(previousRoom.currentGame);
+        await Game.updateOne(
+          { _id: previousRoom.currentGame, status: { $ne: 'ended' } },
+          { $set: { status: 'ended', endedAt: new Date(), autoCallEnabled: false, nextAutoCallAt: null } }
+        );
+      }
+    }
     await Room.updateMany(
       { host: req.user._id, status: { $in: ['waiting', 'active', 'paused'] } },
       { status: 'ended' }
@@ -41,14 +57,13 @@ const createRoom = async (req, res, next) => {
 const getRoomByCode = async (req, res, next) => {
   try {
     const room = await Room.findOne({ roomCode: req.params.code.toUpperCase() })
-      .populate('host', 'username email avatar')
-      .populate('players.user', 'username email avatar');
+      .populate('host', 'username avatar')
+      .populate('players.user', 'username avatar');
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
 
-    if (!room) {
-      return res.status(404).json({ success: false, message: 'Room not found' });
-    }
-
-    res.json({ success: true, room });
+    const access = await getRoomAccess(room, req.user._id);
+    if (!access.role) return res.status(403).json({ success: false, message: 'You are not a member of this room' });
+    res.json({ success: true, room, role: access.role });
   } catch (error) {
     next(error);
   }
@@ -71,7 +86,8 @@ const joinRoom = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'This game has ended' });
     }
 
-    if (room.status === 'active') {
+    const alreadyMember = room.players.some((entry) => entry.user.toString() === req.user._id.toString());
+    if (['active', 'paused'].includes(room.status) && !alreadyMember) {
       return res.status(400).json({ success: false, message: 'Game already in progress' });
     }
 
@@ -80,9 +96,11 @@ const joinRoom = async (req, res, next) => {
       { $push: { players: { user: req.user._id } } }
     );
 
-    await room.populate('players.user', 'username email avatar');
+    const updatedRoom = await Room.findById(room._id)
+      .populate('host', 'username avatar')
+      .populate('players.user', 'username avatar');
 
-    res.json({ success: true, room });
+    res.json({ success: true, room: updatedRoom });
   } catch (error) {
     next(error);
   }
@@ -135,4 +153,18 @@ const removePlayer = async (req, res, next) => {
   }
 };
 
-module.exports = { createRoom, getRoomByCode, joinRoom, updateRoom, removePlayer };
+
+const getRoomState = async (req, res, next) => {
+  try {
+    const room = await Room.findOne({ roomCode: req.params.code.toUpperCase() });
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    const access = await getRoomAccess(room, req.user._id);
+    if (!access.role) return res.status(403).json({ success: false, message: 'You are not a room member' });
+    const { buildSnapshot } = require('../socket/handlers/roomHandlers');
+    const snapshot = await buildSnapshot(room, access.role, req.user._id);
+    res.json({ success: true, ...snapshot });
+  } catch (error) {
+    next(error);
+  }
+};
+module.exports = { createRoom, getRoomByCode, getRoomState, joinRoom, updateRoom, removePlayer };

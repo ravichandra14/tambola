@@ -1,6 +1,7 @@
 const Game = require('../models/Game');
 const Leaderboard = require('../models/Leaderboard');
 const Claim = require('../models/Claim');
+const { getRoomAccess } = require('../utils/access');
 
 // @desc  Get host's game history
 // @route GET /api/history
@@ -33,6 +34,8 @@ const getGameHistory = async (req, res, next) => {
   try {
     const game = await Game.findById(req.params.gameId).populate('host', 'username');
     if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
+    const access = await getRoomAccess(game.room, req.user._id);
+    if (!access.role) return res.status(403).json({ success: false, message: 'Not a game participant' });
 
     const leaderboard = await Leaderboard.findOne({ game: game._id }).populate(
       'entries.player',

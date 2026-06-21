@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
@@ -6,73 +6,74 @@ const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
   const { user } = useAuth();
-  const socketRef = useRef(null);
+  const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [online, setOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-        setConnected(false);
-      }
+      setSocket((current) => {
+        current?.disconnect();
+        return null;
+      });
+      setConnected(false);
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const socket = io('/', {
+    const nextSocket = io('/', {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      randomizationFactor: 0.4,
     });
 
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      setConnected(true);
-      console.log('🔌 Socket connected');
-    });
-
-    socket.on('disconnect', () => {
-      setConnected(false);
-      console.log('❌ Socket disconnected');
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error('Socket connection error:', err.message);
-      setConnected(false);
-    });
+    setSocket(nextSocket);
+    nextSocket.on('connect', () => setConnected(true));
+    nextSocket.on('disconnect', () => setConnected(false));
+    nextSocket.on('connect_error', () => setConnected(false));
 
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      nextSocket.disconnect();
+      setSocket(null);
       setConnected(false);
     };
   }, [user]);
 
-  const emit = useCallback((event, data) => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit(event, data);
+  const emit = useCallback((event, data, acknowledge) => {
+    if (!socket?.connected) {
+      acknowledge?.({ success: false, error: 'Connection unavailable' });
+      return false;
     }
-  }, []);
+    socket.emit(event, data, acknowledge);
+    return true;
+  }, [socket]);
 
   const on = useCallback((event, handler) => {
-    if (socketRef.current) {
-      socketRef.current.on(event, handler);
-    }
-    return () => socketRef.current?.off(event, handler);
-  }, []);
+    socket?.on(event, handler);
+    return () => socket?.off(event, handler);
+  }, [socket]);
 
-  const off = useCallback((event, handler) => {
-    socketRef.current?.off(event, handler);
-  }, []);
+  const off = useCallback((event, handler) => socket?.off(event, handler), [socket]);
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, connected, emit, on, off }}>
+    <SocketContext.Provider value={{ socket, connected, online, emit, on, off }}>
       {children}
     </SocketContext.Provider>
   );

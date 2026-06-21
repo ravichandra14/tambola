@@ -1,33 +1,36 @@
-const Room = require('../../models/Room');
+﻿const Room = require('../../models/Room');
 const ChatMessage = require('../../models/ChatMessage');
+const { getRoomAccess } = require('../../utils/access');
 
 const registerChatHandlers = (io, socket) => {
-  // Send chat message
-  socket.on('send_chat', async ({ roomCode, message }) => {
+  socket.on('send_chat', async ({ roomCode, message } = {}, acknowledge = () => {}) => {
     try {
-      if (!socket.user || !message || !roomCode) return;
-      if (message.trim().length === 0 || message.length > 500) return;
-
-      const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
-      if (!room) return;
+      if (typeof message !== 'string' || !message.trim() || message.length > 500) {
+        return acknowledge({ success: false, error: 'Message must contain 1-500 characters' });
+      }
+      const room = await Room.findOne({ roomCode: roomCode?.toUpperCase() });
+      const access = room ? await getRoomAccess(room, socket.user._id) : { role: null };
+      if (!room || !access.role || !socket.rooms.has(room.roomCode)) {
+        return acknowledge({ success: false, error: 'You are not connected to this room' });
+      }
 
       const chat = await ChatMessage.create({
         room: room._id,
         sender: socket.user._id,
         senderName: socket.user.username,
         message: message.trim(),
-        type: 'user',
       });
 
-      io.to(roomCode).emit('chat_message', {
+      io.to(room.roomCode).emit('chat_message', {
         _id: chat._id,
         sender: { _id: socket.user._id, username: socket.user.username, avatar: socket.user.avatar },
         message: chat.message,
         timestamp: chat.createdAt,
         type: 'user',
       });
-    } catch (err) {
-      console.error('Chat error:', err.message);
+      acknowledge({ success: true });
+    } catch (error) {
+      acknowledge({ success: false, error: error.message });
     }
   });
 };

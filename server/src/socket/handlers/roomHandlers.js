@@ -1,136 +1,172 @@
-const Room = require('../../models/Room');
+﻿const Room = require('../../models/Room');
 const Game = require('../../models/Game');
 const Ticket = require('../../models/Ticket');
 const Leaderboard = require('../../models/Leaderboard');
+const Claim = require('../../models/Claim');
 const ChatMessage = require('../../models/ChatMessage');
+const { getRoomAccess, publicGame } = require('../../utils/access');
+
+const buildSnapshot = async (room, role, userId) => {
+  await room.populate('host', 'username avatar');
+  await room.populate('players.user', 'username avatar');
+
+  let game = null;
+  let ticket = null;
+  let leaderboard = [];
+  let claims = [];
+
+  if (room.currentGame) {
+    const gameDocument = await Game.findById(room.currentGame);
+    if (gameDocument) {
+      game = publicGame(gameDocument, role);
+      if (role === 'player') ticket = await Ticket.findOne({ game: gameDocument._id, player: userId });
+      const board = await Leaderboard.findOne({ game: gameDocument._id });
+      leaderboard = board?.entries || [];
+      if (role === 'host') {
+        claims = await Claim.find({ game: gameDocument._id, status: 'pending' })
+          .populate('player', 'username avatar')
+          .sort({ submittedAt: 1 });
+      }
+    }
+  }
+
+  const chatHistory = await ChatMessage.find({ room: room._id })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .populate('sender', 'username avatar')
+    .lean();
+
+  return {
+    room: {
+      _id: room._id,
+      roomCode: room.roomCode,
+      status: room.status,
+      host: room.host,
+      players: room.players,
+      pointConfig: room.pointConfig,
+      numberCallingMode: room.numberCallingMode,
+      autoInterval: room.autoInterval,
+      currentGame: room.currentGame,
+    },
+    role,
+    game,
+    ticket,
+    leaderboard,
+    claims,
+    chatHistory: chatHistory.reverse(),
+  };
+};
 
 const registerRoomHandlers = (io, socket) => {
-  // Join room
-  socket.on('join_room', async ({ roomCode, isHost }) => {
+  socket.on('join_room', async ({ roomCode } = {}, acknowledge = () => {}) => {
     try {
-      if (!socket.user) return;
-
-      const room = await Room.findOne({ roomCode: roomCode.toUpperCase() })
-        .populate('host', 'username avatar email')
-        .populate('players.user', 'username avatar email');
-
-      if (!room) {
-        return socket.emit('error', { message: 'Room not found' });
+      if (!roomCode || typeof roomCode !== 'string') {
+        return acknowledge({ success: false, error: 'Room code is required' });
       }
+      const room = await Room.findOne({ roomCode: roomCode.trim().toUpperCase() });
+      if (!room) return acknowledge({ success: false, error: 'Room not found' });
 
-      socket.join(roomCode);
-      socket.roomCode = roomCode;
+      const access = await getRoomAccess(room, socket.user._id);
+      if (!access.role) return acknowledge({ success: false, error: 'You are not a member of this room' });
 
-      // Update socket IDs
-      if (isHost) {
+      const canonicalCode = room.roomCode;
+      socket.join(canonicalCode);
+      socket.roomCode = canonicalCode;
+      socket.roomRole = access.role;
+
+      if (access.role === 'host') {
         room.hostSocketId = socket.id;
-        await room.save();
       } else {
-        const playerEntry = room.players.find((p) => p.user._id.toString() === socket.user._id.toString());
-        if (playerEntry) {
-          playerEntry.socketId = socket.id;
-          await room.save();
-        }
+        const player = room.players.find((entry) => entry.user.toString() === socket.user._id.toString());
+        player.socketId = socket.id;
+        player.connected = true;
+        player.lastSeenAt = new Date();
       }
-
-      // If game is active, send ticket to player
-      let ticket = null;
-      let game = null;
-      if (room.currentGame && !isHost) {
-        game = await Game.findById(room.currentGame);
-        if (game) {
-          ticket = await Ticket.findOne({ game: game._id, player: socket.user._id });
-        }
-      }
-
-      // Load chat history (last 50)
-      const chatHistory = await ChatMessage.find({ room: room._id })
-        .sort({ createdAt: -1 })
-        .limit(50)
-        .populate('sender', 'username avatar')
-        .lean();
-
-      socket.emit('room_joined', {
-        room: {
-          _id: room._id,
-          roomCode: room.roomCode,
-          status: room.status,
-          host: room.host,
-          players: room.players,
-          pointConfig: room.pointConfig,
-          numberCallingMode: room.numberCallingMode,
-          autoInterval: room.autoInterval,
-          currentGame: room.currentGame,
-        },
-        ticket,
-        game,
-        chatHistory: chatHistory.reverse(),
-      });
-
-      // Notify room of new player
-      if (!isHost) {
-        io.to(roomCode).emit('player_joined', {
-          player: { _id: socket.user._id, username: socket.user.username, avatar: socket.user.avatar },
-          players: room.players,
-        });
-      }
-    } catch (err) {
-      console.error('join_room error:', err.message);
-      socket.emit('error', { message: 'Failed to join room' });
-    }
-  });
-
-  // Leave room
-  socket.on('leave_room', async ({ roomCode }) => {
-    try {
-      socket.leave(roomCode);
-      if (socket.user) {
-        io.to(roomCode).emit('player_left', {
-          playerId: socket.user._id,
-          username: socket.user.username,
-        });
-      }
-    } catch (err) {
-      console.error('leave_room error:', err.message);
-    }
-  });
-
-  // Remove player (host action)
-  socket.on('remove_player', async ({ roomCode, playerId }) => {
-    try {
-      const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
-      if (!room || room.host.toString() !== socket.user._id.toString()) return;
-
-      const playerEntry = room.players.find((p) => p.user.toString() === playerId);
-      room.players = room.players.filter((p) => p.user.toString() !== playerId);
       await room.save();
 
-      // Disconnect the removed player's socket
-      if (playerEntry && playerEntry.socketId) {
-        io.to(playerEntry.socketId).emit('player_removed', { message: 'You have been removed from the room' });
-        const removedSocket = io.sockets.sockets.get(playerEntry.socketId);
-        if (removedSocket) removedSocket.leave(roomCode);
-      }
-
-      io.to(roomCode).emit('player_left', { playerId, removed: true });
-    } catch (err) {
-      console.error('remove_player error:', err.message);
+      const snapshot = await buildSnapshot(room, access.role, socket.user._id);
+      socket.emit('room_joined', snapshot);
+      io.to(canonicalCode).emit('presence_changed', {
+        playerId: socket.user._id,
+        connected: true,
+        players: snapshot.room.players,
+      });
+      acknowledge({ success: true, data: snapshot });
+    } catch (error) {
+      console.error('join_room error:', error.message);
+      acknowledge({ success: false, error: 'Failed to join room' });
     }
   });
 
-  // Disconnect
+  socket.on('leave_room', async ({ roomCode } = {}, acknowledge = () => {}) => {
+    try {
+      const room = await Room.findOne({ roomCode: roomCode?.toUpperCase() });
+      if (!room) return acknowledge({ success: false, error: 'Room not found' });
+      const access = await getRoomAccess(room, socket.user._id);
+      if (!access.role) return acknowledge({ success: false, error: 'Not a room member' });
+
+      if (access.role === 'player' && room.status === 'waiting') {
+        room.players = room.players.filter((entry) => entry.user.toString() !== socket.user._id.toString());
+        await room.save();
+      }
+      socket.leave(room.roomCode);
+      socket.roomCode = null;
+      io.to(room.roomCode).emit('player_left', { playerId: socket.user._id });
+      acknowledge({ success: true });
+    } catch (error) {
+      acknowledge({ success: false, error: error.message });
+    }
+  });
+
+  socket.on('remove_player', async ({ roomCode, playerId } = {}, acknowledge = () => {}) => {
+    try {
+      const room = await Room.findOne({ roomCode: roomCode?.toUpperCase() });
+      if (!room || room.host.toString() !== socket.user._id.toString()) {
+        return acknowledge({ success: false, error: 'Only the host can remove players' });
+      }
+
+      const playerEntry = room.players.find((entry) => entry.user.toString() === playerId);
+      room.players = room.players.filter((entry) => entry.user.toString() !== playerId);
+      await room.save();
+
+      if (playerEntry?.socketId) {
+        io.to(playerEntry.socketId).emit('player_removed', { message: 'You have been removed from the room' });
+        io.sockets.sockets.get(playerEntry.socketId)?.leave(room.roomCode);
+      }
+
+      io.to(room.roomCode).emit('player_left', { playerId, removed: true });
+      acknowledge({ success: true });
+    } catch (error) {
+      acknowledge({ success: false, error: error.message });
+    }
+  });
+
   socket.on('disconnecting', async () => {
     try {
-      if (socket.roomCode && socket.user) {
-        io.to(socket.roomCode).emit('player_left', {
-          playerId: socket.user._id,
-          username: socket.user.username,
-        });
+      if (!socket.roomCode) return;
+      const room = await Room.findOne({ roomCode: socket.roomCode });
+      if (!room) return;
+
+      if (room.host.toString() === socket.user._id.toString()) {
+        if (room.hostSocketId === socket.id) room.hostSocketId = null;
+      } else {
+        const player = room.players.find((entry) => entry.user.toString() === socket.user._id.toString());
+        if (player && player.socketId === socket.id) {
+          player.connected = false;
+          player.socketId = null;
+          player.lastSeenAt = new Date();
+        }
       }
-    } catch (err) {
-      console.error('disconnecting error:', err.message);
+      await room.save();
+      io.to(room.roomCode).emit('presence_changed', {
+        playerId: socket.user._id,
+        connected: false,
+        lastSeenAt: new Date(),
+      });
+    } catch (error) {
+      console.error('disconnecting error:', error.message);
     }
   });
 };
 
-module.exports = { registerRoomHandlers };
+module.exports = { registerRoomHandlers, buildSnapshot };

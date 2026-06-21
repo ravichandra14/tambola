@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -20,7 +20,7 @@ import { FiCopy, FiPlay, FiShare2 } from 'react-icons/fi';
 const HostDashboard = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { socket, emit } = useSocket();
+  const { socket, emit, connected } = useSocket();
   const navigate = useNavigate();
 
   const [room, setRoom] = useState(null);
@@ -50,7 +50,7 @@ const HostDashboard = () => {
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
       osc.start(); osc.stop(ctx.currentTime + 0.4);
-    } catch (_) {}
+    } catch { /* Optional browser feature unavailable. */ }
   };
 
   const roomCode = searchParams.get('room');
@@ -66,7 +66,7 @@ const HostDashboard = () => {
         const res = await getRoomByCode(roomCode);
         if (res.data.room.host._id !== user?._id) {
           toast.error('You are not the host of this room!');
-          navigate(`/player?code=${roomCode}`);
+          navigate(`/play?code=${roomCode}`);
           return;
         }
         setRoom(res.data.room);
@@ -83,16 +83,37 @@ const HostDashboard = () => {
 
   useEffect(() => {
     if (!socket || !roomCode) return;
-    emit('join_room', { roomCode, isHost: true });
+    if (!connected) return;
+    emit('join_room', { roomCode }, (result) => {
+      if (!result?.success) toast.error(result?.error || 'Unable to rejoin room');
+    });
 
     const onRoomJoined = (data) => {
       setRoom(data.room); setPlayers(data.room.players || []);
       if (data.game) { setGame(data.game); setCalledNumbers(data.game.calledNumbers || []); setCurrentNumber(data.game.currentNumber); }
       if (data.chatHistory) setChatMessages(data.chatHistory);
+      if (data.leaderboard) setLeaderboard(data.leaderboard);
+      if (data.claims) setClaims(data.claims);
+    };
+    const onPresenceChanged = (data) => {
+      if (data.players) setPlayers(data.players);
+      else setPlayers((prev) => prev.map((entry) => (entry.user?._id || entry.user) === data.playerId
+        ? { ...entry, connected: data.connected, lastSeenAt: data.lastSeenAt }
+        : entry));
     };
     const onPlayerJoined = (data) => { setPlayers(data.players || []); toast(`${data.player?.username} joined!`, { icon: '👋' }); };
     const onPlayerLeft = (data) => { setPlayers((prev) => prev.filter((p) => (p.user?._id || p._id) !== data.playerId)); if (!data.removed) toast('Player left', { icon: '👋' }); };
-    const onNumberCalled = (data) => { setCalledNumbers(data.calledNumbers || []); setCurrentNumber(data.number); playCallSound(); };
+    const onNumberCalled = (data) => {
+      setCalledNumbers(data.calledNumbers || []);
+      setCurrentNumber(data.number);
+      setGame((current) => current ? {
+        ...current,
+        currentNumber: data.number,
+        calledNumbers: data.calledNumbers || [],
+        remainingNumbers: current.remainingNumbers?.slice(1),
+      } : current);
+      playCallSound();
+    };
     const onClaimSubmitted = (data) => { setClaims((prev) => [...prev, data.claim]); toast(`${data.claim?.player?.username} submitted ${data.claim?.claimType} claim!`, { icon: '🎯' }); };
     const onClaimApproved = (data) => { setClaims((prev) => prev.filter((c) => c._id !== data.claim._id)); setLeaderboard(data.leaderboard || []); };
     const onClaimRejected = (data) => { setClaims((prev) => prev.filter((c) => c._id !== data.claim._id)); };
@@ -108,6 +129,7 @@ const HostDashboard = () => {
     const onWinnerAnnounced = (data) => { toast(`🏆 ${data.winner?.username} won ${data.claimType}! (+${data.points} pts)`, { duration: 5000, icon: '🎉' }); };
 
     socket.on('room_joined', onRoomJoined);
+    socket.on('presence_changed', onPresenceChanged);
     socket.on('player_joined', onPlayerJoined);
     socket.on('player_left', onPlayerLeft);
     socket.on('number_called', onNumberCalled);
@@ -122,6 +144,7 @@ const HostDashboard = () => {
 
     return () => {
       socket.off('room_joined', onRoomJoined);
+      socket.off('presence_changed', onPresenceChanged);
       socket.off('player_joined', onPlayerJoined);
       socket.off('player_left', onPlayerLeft);
       socket.off('number_called', onNumberCalled);
@@ -134,7 +157,7 @@ const HostDashboard = () => {
       socket.off('game_ended', onGameEnded);
       socket.off('winner_announced', onWinnerAnnounced);
     };
-  }, [socket, roomCode, emit]);
+  }, [socket, roomCode, emit, connected]);
 
   const handleStartGame = async () => {
     if (!room?._id) return;
@@ -159,7 +182,7 @@ const HostDashboard = () => {
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Join my Tambola game!', text: `Use code ${room?.roomCode} to join!` });
-      } catch (_) {}
+      } catch { /* Optional browser feature unavailable. */ }
     } else {
       handleCopyCode();
     }
@@ -257,7 +280,7 @@ const HostDashboard = () => {
           {/* Right column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
             {isActive && <NumberCaller game={game} room={room} onGameUpdate={setGame} />}
-            <PlayerList players={players} hostId={user?._id} roomId={room?._id} roomCode={room?.roomCode} gameActive={isActive} />
+            <PlayerList players={players} hostId={user?._id} roomCode={room?.roomCode} gameActive={isActive} />
             {isActive && <ClaimsPanel claims={claims} onClaimsUpdate={handleClaimsUpdate} />}
             <Chat roomCode={room?.roomCode} initialMessages={chatMessages} />
           </div>
