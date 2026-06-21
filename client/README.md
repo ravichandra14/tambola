@@ -1,16 +1,53 @@
-# React + Vite
+# Tambola — Client (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend for the **Tambola Housie** multiplayer game.  
+Built with **React 19**, **Vite**, **TailwindCSS v4**, **Socket.IO client**, and **Framer Motion**.
 
-Currently, two official plugins are available:
+## Getting Started
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+# From the project root
+npm run dev:client
 
-## React Compiler
+# Or from this directory
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The dev server runs at **http://localhost:5173**.
 
-## Expanding the ESLint configuration
+## Pages
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Page               | Route            | Description                          |
+|--------------------|------------------|--------------------------------------|
+| `Home`             | `/`              | Landing / lobby                      |
+| `Login`            | `/login`         | User login                           |
+| `Register`         | `/register`      | User registration                    |
+| `HostDashboard`    | `/host/:roomId`  | Host controls — call numbers, manage |
+| `PlayerDashboard`  | `/play/:roomId`  | Player ticket & live gameplay        |
+| `Leaderboard`      | `/leaderboard`   | Game winners                         |
+| `GameHistory`      | `/history`       | Past games                           |
+| `Profile`          | `/profile`       | User stats & profile                 |
+
+## Scripts
+
+| Command          | Description               |
+|------------------|---------------------------|
+| `npm run dev`    | Start Vite dev server     |
+| `npm run build`  | Build for production      |
+| `npm run lint`   | Run ESLint                |
+| `npm run preview`| Preview production build  |
+
+## Key Dependencies
+
+- `react` + `react-dom` — UI framework
+- `react-router-dom` — Routing
+- `socket.io-client` — Real-time communication
+- `axios` — HTTP requests
+- `framer-motion` — Animations
+- `canvas-confetti` — Win celebrations
+- `jspdf` — Ticket PDF export
+- `react-hot-toast` — Notifications
+- `react-icons` — Icon library
+- `tailwindcss` v4 — Utility-first styling
+
+> For full project documentation, see the [root README](../README.md).

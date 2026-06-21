@@ -1,34 +1,46 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const COLUMNS = [
+  { label: '1-9',   range: [1, 9],   color: '#6366f1', bg: 'rgba(99,102,241,0.25)' },
+  { label: '10-19', range: [10, 19], color: '#8b5cf6', bg: 'rgba(139,92,246,0.25)' },
+  { label: '20-29', range: [20, 29], color: '#a855f7', bg: 'rgba(168,85,247,0.25)' },
+  { label: '30-39', range: [30, 39], color: '#3b82f6', bg: 'rgba(59,130,246,0.25)' },
+  { label: '40-49', range: [40, 49], color: '#06b6d4', bg: 'rgba(6,182,212,0.25)' },
+  { label: '50-59', range: [50, 59], color: '#10b981', bg: 'rgba(16,185,129,0.25)' },
+  { label: '60-69', range: [60, 69], color: '#f59e0b', bg: 'rgba(245,158,11,0.25)' },
+  { label: '70-79', range: [70, 79], color: '#ef4444', bg: 'rgba(239,68,68,0.25)' },
+  { label: '80-90', range: [80, 90], color: '#ec4899', bg: 'rgba(236,72,153,0.25)' },
+];
+
 const NumberBoard = ({ calledNumbers = [], currentNumber = null }) => {
   const calledSet = useMemo(() => new Set(calledNumbers), [calledNumbers]);
 
-  const columns = [
-    { label: 'B', range: [1, 9], color: '#6366f1' },
-    { label: 'I', range: [10, 19], color: '#8b5cf6' },
-    { label: 'N', range: [20, 29], color: '#a855f7' },
-    { label: 'G', range: [30, 39], color: '#3b82f6' },
-    { label: 'O', range: [40, 49], color: '#06b6d4' },
-    { label: '', range: [50, 59], color: '#10b981' },
-    { label: '', range: [60, 69], color: '#f59e0b' },
-    { label: '', range: [70, 79], color: '#ef4444' },
-    { label: '', range: [80, 90], color: '#ec4899' },
-  ];
-
   return (
-    <div className="card">
+    <div className="card" style={{ padding: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.875rem' }}>
-        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
+        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: '#e2e8f0', margin: 0, fontSize: '1rem' }}>
           📊 Number Board
         </h3>
-        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-          {calledNumbers.length} / 90 called
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+            <span style={{ color: '#6366f1', fontWeight: 700 }}>{calledNumbers.length}</span> / 90 called
+          </span>
+        </div>
+      </div>
+
+      {/* Column color legend strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: '3px', marginBottom: '4px' }}>
+        {COLUMNS.map(({ color, label }) => (
+          <div key={label} style={{
+            height: '3px', borderRadius: '2px',
+            background: color, opacity: 0.6,
+          }} />
+        ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: '3px' }}>
-        {columns.map(({ label, range, color }) => {
+        {COLUMNS.map(({ range, color, bg }) => {
           const nums = [];
           for (let i = range[0]; i <= range[1]; i++) nums.push(i);
           return nums.map((num) => {
@@ -38,10 +50,15 @@ const NumberBoard = ({ calledNumbers = [], currentNumber = null }) => {
               <AnimatePresence key={num} mode="wait">
                 <motion.div
                   className={`number-ball ${isCurrent ? 'current' : isCalled ? 'called' : 'not-called'}`}
-                  style={isCurrent ? {} : isCalled ? { background: `${color}33`, color: color, border: `1px solid ${color}66` } : {}}
-                  initial={isCurrent ? { scale: 0.5, rotate: -10 } : {}}
+                  style={isCurrent
+                    ? {}
+                    : isCalled
+                      ? { background: bg, color, border: `1px solid ${color}55`, boxShadow: `0 0 8px ${color}30` }
+                      : {}
+                  }
+                  initial={isCurrent ? { scale: 0.4, rotate: -15 } : {}}
                   animate={isCurrent ? { scale: 1, rotate: 0 } : {}}
-                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 18 }}
                 >
                   {num}
                 </motion.div>

@@ -14,7 +14,7 @@ import LeaderboardPanel from '../components/common/LeaderboardPanel';
 import Chat from '../components/common/Chat';
 import Modal from '../components/common/Modal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiUsers } from 'react-icons/fi';
+import { FiUsers, FiBarChart2, FiMessageCircle } from 'react-icons/fi';
 
 const PlayerDashboard = () => {
   const [searchParams] = useSearchParams();
@@ -39,6 +39,8 @@ const PlayerDashboard = () => {
   const [winnerInfo, setWinnerInfo] = useState(null);
   const [showFinalModal, setShowFinalModal] = useState(false);
   const [finalScoreboard, setFinalScoreboard] = useState([]);
+  // Mobile side panel tab
+  const [sideTab, setSideTab] = useState('leaderboard');
 
   const audioCtxRef = useRef(null);
 
@@ -62,25 +64,13 @@ const PlayerDashboard = () => {
 
   const code = searchParams.get('code');
 
-  // Join room via API
   useEffect(() => {
     if (!code) { navigate('/'); return; }
-    // Clear old state for new room
-    setGame(null);
-    setTicket(null);
-    setCalledNumbers([]);
-    setCurrentNumber(null);
-    setHighlightNew(null);
-    setClaimedPrizes({});
-    setWonClaims([]);
-    setLeaderboard([]);
-    setChatMessages([]);
-    setJoined(false);
-    setGameStatus('waiting');
-    setShowWinnerModal(false);
-    setWinnerInfo(null);
-    setShowFinalModal(false);
-    setFinalScoreboard([]);
+    setGame(null); setTicket(null); setCalledNumbers([]); setCurrentNumber(null);
+    setHighlightNew(null); setClaimedPrizes({}); setWonClaims([]); setLeaderboard([]);
+    setChatMessages([]); setJoined(false); setGameStatus('waiting');
+    setShowWinnerModal(false); setWinnerInfo(null); setShowFinalModal(false); setFinalScoreboard([]);
+
     const join = async () => {
       try {
         const res = await joinRoom(code);
@@ -96,15 +86,12 @@ const PlayerDashboard = () => {
     join();
   }, [code, navigate]);
 
-  // Socket events
   useEffect(() => {
     if (!socket || !code || !joined) return;
-
     emit('join_room', { roomCode: code, isHost: false });
 
     const onRoomJoined = (data) => {
-      setRoom(data.room);
-      setGameStatus(data.room.status);
+      setRoom(data.room); setGameStatus(data.room.status);
       if (data.ticket) setTicket(data.ticket);
       if (data.game) {
         setGame(data.game);
@@ -117,11 +104,9 @@ const PlayerDashboard = () => {
     };
 
     const onGameStarted = async (data) => {
-      setGame(data.game);
-      setGameStatus('active');
+      setGame(data.game); setGameStatus('active');
       setLeaderboard(data.leaderboard || []);
       toast.success('Game has started! 🎯');
-      // Fetch ticket
       try {
         const res = await getMyTicket(data.game._id);
         setTicket(res.data.ticket);
@@ -154,39 +139,26 @@ const PlayerDashboard = () => {
     };
 
     const onWinnerAnnounced = (data) => {
-      setWinnerInfo(data);
-      setShowWinnerModal(true);
+      setWinnerInfo(data); setShowWinnerModal(true);
       if (data.winner?._id === user?._id || data.winner === user?._id) {
         confetti({ particleCount: 200, spread: 120, origin: { y: 0.5 } });
       }
       setTimeout(() => setShowWinnerModal(false), 5000);
     };
 
-    const onGamePaused = () => {
-      setGameStatus('paused');
-      toast('Game paused by host ⏸️', { icon: '⏸️' });
-    };
-
-    const onGameResumed = () => {
-      setGameStatus('active');
-      toast.success('Game resumed! ▶️');
-    };
-
+    const onGamePaused = () => { setGameStatus('paused'); toast('Game paused by host ⏸️', { icon: '⏸️' }); };
+    const onGameResumed = () => { setGameStatus('active'); toast.success('Game resumed! ▶️'); };
     const onGameEnded = (data) => {
       setGameStatus('ended');
       setFinalScoreboard(data.finalScoreboard || []);
       setShowFinalModal(true);
       confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
     };
-
     const onPlayerRemoved = (data) => {
       toast.error(data.message || 'You have been removed from the room');
       setTimeout(() => navigate('/'), 2000);
     };
-
-    const onPlayerJoined = (data) => {
-      toast(`${data.player?.username} joined`, { icon: '👋' });
-    };
+    const onPlayerJoined = (data) => { toast(`${data.player?.username} joined`, { icon: '👋' }); };
 
     socket.on('room_joined', onRoomJoined);
     socket.on('game_started', onGameStarted);
@@ -221,48 +193,46 @@ const PlayerDashboard = () => {
   const isEnded = gameStatus === 'ended';
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f1a' }}>
-      <div className="text-center">
-        <div className="spinner" style={{ margin: '0 auto 1rem' }} />
-        <p style={{ color: '#64748b' }}>Joining room...</p>
-      </div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f1a', flexDirection: 'column', gap: '1rem' }}>
+      <div className="spinner" style={{ width: 48, height: 48, borderWidth: 3 }} />
+      <p style={{ color: '#64748b', fontWeight: 500 }}>Joining room...</p>
     </div>
   );
 
+  const statusBadgeClass = isActive ? 'badge-green' : isPaused ? 'badge-yellow' : isEnded ? 'badge-red' : 'badge-blue';
+  const statusLabel = isActive ? '🟢 Live' : isPaused ? '⏸️ Paused' : isEnded ? '🔴 Ended' : '⏳ Waiting';
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="page-wrapper">
       <Sidebar />
-      <main style={{ flex: 1, padding: '1.5rem', overflowY: 'auto' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div>
-            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: '1.75rem', color: '#e2e8f0', margin: '0 0 0.25rem' }}>
-              Playing Tambola
+      <main className="page-main">
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ paddingTop: '0' }} className="header-content">
+            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 'clamp(1.25rem, 4vw, 1.75rem)', color: '#e2e8f0', margin: '0 0 0.3rem' }}>
+              🎯 Playing Tambola
             </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <span style={{ color: '#64748b', fontSize: '0.875rem' }}>Room:</span>
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, color: '#818cf8', letterSpacing: '0.1em' }}>{room?.roomCode}</span>
-              <span className={`badge ${isActive ? 'badge-green' : isPaused ? 'badge-yellow' : isEnded ? 'badge-red' : 'badge-blue'}`}>
-                {isActive ? '🟢 Live' : isPaused ? '⏸️ Paused' : isEnded ? 'Ended' : '⏳ Waiting'}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: '#64748b', fontSize: '0.8rem' }}>
-                <FiUsers size={14} />
-                {room?.players?.length || 0} players
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+              <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Room</span>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, color: '#818cf8', letterSpacing: '0.1em', fontSize: '0.95rem' }}>{room?.roomCode}</span>
+              <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#64748b', fontSize: '0.78rem' }}>
+                <FiUsers size={13} /> {room?.players?.length || 0}
               </div>
             </div>
           </div>
 
-          {/* Current number highlight (when active) */}
-          {isActive && currentNumber && (
+          {/* Current number */}
+          {(isActive || isPaused) && currentNumber && (
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentNumber}
                 initial={{ scale: 0, rotate: -20 }}
                 animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 300 }}
-                style={{ textAlign: 'center' }}
+                transition={{ type: 'spring', stiffness: 320 }}
+                style={{ textAlign: 'center', flexShrink: 0 }}
               >
-                <div style={{ fontSize: '0.65rem', color: '#64748b', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current</div>
+                <div style={{ fontSize: '0.6rem', color: '#64748b', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Current</div>
                 <div className="current-number-display" style={{ width: 72, height: 72, fontSize: '1.75rem' }}>
                   {currentNumber}
                 </div>
@@ -271,47 +241,70 @@ const PlayerDashboard = () => {
           )}
         </div>
 
-        {/* Waiting state */}
+        {/* ── Waiting state ── */}
         {isWaiting && (
-          <div className="card" style={{ textAlign: 'center', padding: '3rem', marginBottom: '1.5rem', background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(30,42,74,0.8))' }}>
-            <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>⏳</div>
-            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#e2e8f0', marginBottom: '0.5rem' }}>Waiting for host to start...</h2>
-            <p style={{ color: '#64748b' }}>You're in! Get ready for your ticket once the game begins.</p>
+          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', marginBottom: '1.25rem', background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(30,42,74,0.8))' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '0.75rem', animation: 'float 3s ease-in-out infinite' }}>⏳</div>
+            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: '#e2e8f0', marginBottom: '0.5rem', fontSize: 'clamp(1rem, 3vw, 1.3rem)' }}>Waiting for host to start...</h2>
+            <p style={{ color: '#64748b', fontSize: '0.875rem' }}>You're in! Get ready for your ticket once the game begins.</p>
+            <Chat roomCode={room?.roomCode} initialMessages={chatMessages} />
           </div>
         )}
 
-        {/* Game layout */}
+        {/* ── Game layout ── */}
         {(isActive || isPaused || isEnded) && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1.25rem' }}>
-            {/* Left */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <TambolaTicket ticket={ticket} calledNumbers={calledNumbers} highlightNew={highlightNew} />
-              <NumberBoard calledNumbers={calledNumbers} currentNumber={currentNumber} />
-              {!isEnded && (
-                <ClaimButtons
-                  gameId={game?._id}
-                  claimedPrizes={claimedPrizes}
-                  wonClaims={wonClaims}
-                  pointConfig={room?.pointConfig || game?.pointConfig}
-                />
-              )}
+          <>
+            {/* Desktop: two-column grid */}
+            <div className="player-game-grid">
+              {/* Left column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                <TambolaTicket ticket={ticket} calledNumbers={calledNumbers} highlightNew={highlightNew} />
+                <NumberBoard calledNumbers={calledNumbers} currentNumber={currentNumber} />
+                {!isEnded && (
+                  <ClaimButtons
+                    gameId={game?._id}
+                    claimedPrizes={claimedPrizes}
+                    wonClaims={wonClaims}
+                    pointConfig={room?.pointConfig || game?.pointConfig}
+                  />
+                )}
+              </div>
+
+              {/* Right column — desktop only */}
+              <div className="player-side-panel-desktop" style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                <LeaderboardPanel entries={leaderboard} />
+                <Chat roomCode={room?.roomCode} initialMessages={chatMessages} />
+              </div>
             </div>
 
-            {/* Right */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <LeaderboardPanel entries={leaderboard} />
-              <Chat roomCode={room?.roomCode} initialMessages={chatMessages} />
+            {/* Mobile side panel with tabs */}
+            <div className="player-side-panel-mobile" style={{ marginTop: '1rem' }}>
+              <div style={{ display: 'flex', background: 'rgba(26,26,46,0.8)', borderRadius: '0.875rem 0.875rem 0 0', border: '1px solid rgba(99,102,241,0.14)', borderBottom: 'none', overflow: 'hidden' }}>
+                <button
+                  className={`mobile-tab-btn ${sideTab === 'leaderboard' ? 'active' : ''}`}
+                  onClick={() => setSideTab('leaderboard')}
+                >
+                  <FiBarChart2 size={15} /> Leaderboard
+                </button>
+                <button
+                  className={`mobile-tab-btn ${sideTab === 'chat' ? 'active' : ''}`}
+                  onClick={() => setSideTab('chat')}
+                >
+                  <FiMessageCircle size={15} /> Chat
+                </button>
+              </div>
+              <div style={{ border: '1px solid rgba(99,102,241,0.14)', borderTop: 'none', borderRadius: '0 0 0.875rem 0.875rem', overflow: 'hidden' }}>
+                {sideTab === 'leaderboard'
+                  ? <LeaderboardPanel entries={leaderboard} />
+                  : <Chat roomCode={room?.roomCode} initialMessages={chatMessages} />
+                }
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Waiting chat */}
-        {isWaiting && (
-          <Chat roomCode={room?.roomCode} initialMessages={chatMessages} />
+          </>
         )}
       </main>
 
-      {/* Winner announcement */}
+      {/* ── Winner toast banner ── */}
       <AnimatePresence>
         {showWinnerModal && winnerInfo && (
           <motion.div
@@ -319,29 +312,31 @@ const PlayerDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -100 }}
             style={{
-              position: 'fixed', top: '1.5rem', left: '50%', transform: 'translateX(-50%)',
-              zIndex: 100, background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-              border: '1px solid rgba(251,191,36,0.4)', borderRadius: '1rem',
-              padding: '1rem 2rem', textAlign: 'center', minWidth: '280px',
+              position: 'fixed', top: '1.25rem', left: '50%', transform: 'translateX(-50%)',
+              zIndex: 100,
+              background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+              border: '1px solid rgba(251,191,36,0.5)',
+              borderRadius: '1rem', padding: '0.875rem 1.75rem',
+              textAlign: 'center', minWidth: '260px', maxWidth: '90vw',
               boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(251,191,36,0.2)',
             }}
           >
-            <div style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>🏆</div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: '#fbbf24', fontSize: '1.1rem' }}>
+            <div style={{ fontSize: '1.75rem', marginBottom: '0.2rem' }}>🏆</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: '#fbbf24', fontSize: '1rem' }}>
               {winnerInfo.winner?.username} won {winnerInfo.claimType}!
             </div>
-            <div style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.25rem' }}>+{winnerInfo.points} points</div>
+            <div style={{ color: '#94a3b8', fontSize: '0.78rem', marginTop: '0.2rem' }}>+{winnerInfo.points} points</div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Final Scoreboard */}
+      {/* ── Final Scoreboard Modal ── */}
       <Modal isOpen={showFinalModal} onClose={() => setShowFinalModal(false)} title="🏆 Game Over — Final Results" maxWidth="500px">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', maxHeight: '400px', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '380px', overflowY: 'auto' }}>
           {[...finalScoreboard].sort((a, b) => b.score - a.score).map((entry, idx) => (
             <div key={idx} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '0.75rem', borderRadius: '0.5rem',
+              padding: '0.75rem', borderRadius: '0.625rem',
               background: entry.username === user?.username ? 'rgba(99,102,241,0.15)' : idx === 0 ? 'rgba(251,191,36,0.1)' : 'rgba(30,42,74,0.5)',
               border: `1px solid ${entry.username === user?.username ? 'rgba(99,102,241,0.4)' : idx === 0 ? 'rgba(251,191,36,0.3)' : 'rgba(99,102,241,0.1)'}`,
             }}>
@@ -359,6 +354,27 @@ const PlayerDashboard = () => {
           Back to Home
         </button>
       </Modal>
+
+      <style>{`
+        .header-content { padding-top: 0; }
+        @media (max-width: 768px) {
+          .header-content { padding-top: 2.75rem; }
+        }
+        /* Desktop: 2-column */
+        .player-game-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 310px;
+          gap: 1.1rem;
+        }
+        .player-side-panel-mobile { display: none; }
+        .player-side-panel-desktop { display: flex; }
+
+        @media (max-width: 900px) {
+          .player-game-grid { grid-template-columns: 1fr; }
+          .player-side-panel-mobile { display: block; }
+          .player-side-panel-desktop { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 };
