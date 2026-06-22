@@ -110,7 +110,10 @@ const HostDashboard = () => {
         ...current,
         currentNumber: data.number,
         calledNumbers: data.calledNumbers || [],
-        remainingNumbers: current.remainingNumbers?.slice(1),
+        remainingNumbers: current.remainingNumbers
+          ? current.remainingNumbers.slice(1)
+          : Array(data.remaining).fill(0),
+        _remaining: data.remaining,
       } : current);
       playCallSound();
     };
@@ -127,6 +130,10 @@ const HostDashboard = () => {
       confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
     };
     const onWinnerAnnounced = (data) => { toast(`🏆 ${data.winner?.username} won ${data.claimType}! (+${data.points} pts)`, { duration: 5000, icon: '🎉' }); };
+    const onAllNumbersCalled = () => {
+      toast('All 90 numbers have been called!', { icon: '✅', duration: 5000 });
+      setGame((g) => g ? { ...g, _remaining: 0 } : g);
+    };
 
     socket.on('room_joined', onRoomJoined);
     socket.on('presence_changed', onPresenceChanged);
@@ -141,6 +148,7 @@ const HostDashboard = () => {
     socket.on('game_resumed', onGameResumed);
     socket.on('game_ended', onGameEnded);
     socket.on('winner_announced', onWinnerAnnounced);
+    socket.on('all_numbers_called', onAllNumbersCalled);
 
     return () => {
       socket.off('room_joined', onRoomJoined);
@@ -156,6 +164,7 @@ const HostDashboard = () => {
       socket.off('game_resumed', onGameResumed);
       socket.off('game_ended', onGameEnded);
       socket.off('winner_announced', onWinnerAnnounced);
+      socket.off('all_numbers_called', onAllNumbersCalled);
     };
   }, [socket, roomCode, emit, connected]);
 

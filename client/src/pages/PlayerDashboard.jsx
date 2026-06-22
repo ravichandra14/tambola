@@ -163,6 +163,9 @@ const PlayerDashboard = () => {
       setTimeout(() => navigate('/'), 2000);
     };
     const onPlayerJoined = (data) => { toast(`${data.player?.username} joined`, { icon: '👋' }); };
+    const onAllNumbersCalled = () => {
+      toast('All 90 numbers have been called!', { icon: '✅', duration: 5000 });
+    };
 
     socket.on('room_joined', onRoomJoined);
     socket.on('game_started', onGameStarted);
@@ -175,6 +178,7 @@ const PlayerDashboard = () => {
     socket.on('game_ended', onGameEnded);
     socket.on('player_removed', onPlayerRemoved);
     socket.on('player_joined', onPlayerJoined);
+    socket.on('all_numbers_called', onAllNumbersCalled);
 
     return () => {
       socket.off('room_joined', onRoomJoined);
@@ -188,6 +192,7 @@ const PlayerDashboard = () => {
       socket.off('game_ended', onGameEnded);
       socket.off('player_removed', onPlayerRemoved);
       socket.off('player_joined', onPlayerJoined);
+      socket.off('all_numbers_called', onAllNumbersCalled);
     };
   }, [socket, code, joined, emit, user, connected, navigate]);
 

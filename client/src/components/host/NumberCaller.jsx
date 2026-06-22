@@ -25,28 +25,37 @@ const NumberCaller = ({ game, room, onGameUpdate }) => {
     return () => socket.off('number_called', handler);
   }, [socket]);
 
-  const handleCallNext = async () => {
+  const handleCallNext = () => {
     if (!game?._id || loading) return;
     setLoading(true);
-    try {
-      emit('call_number', { roomCode: room.roomCode, gameId: game._id });
-    } finally {
+    const sent = emit('call_number', { roomCode: room.roomCode, gameId: game._id }, (result) => {
       setLoading(false);
+      if (!result?.success) {
+        toast.error(result?.error || 'Failed to call number');
+      }
+    });
+    if (!sent) {
+      setLoading(false);
+      toast.error('Not connected — cannot call number right now');
     }
   };
 
-  const handleToggleAuto = async () => {
+  const handleToggleAuto = () => {
     if (autoRunning) {
-      emit('stop_auto_call', { gameId: game._id });
+      const sent = emit('stop_auto_call', { gameId: game._id }, (result) => {
+        if (!result?.success) toast.error(result?.error || 'Failed to stop auto-calling');
+      });
+      if (!sent) { toast.error('Not connected'); return; }
       setAutoRunning(false);
       toast('Auto-calling stopped', { icon: '⏸️' });
     } else {
-      emit('start_auto_call', { gameId: game._id, interval }, (result) => {
+      const sent = emit('start_auto_call', { gameId: game._id, interval }, (result) => {
         if (!result?.success) {
           setAutoRunning(false);
           toast.error(result?.error || 'Failed to start auto-calling');
         }
       });
+      if (!sent) { toast.error('Not connected'); return; }
       setAutoRunning(true);
       toast(`Auto-calling every ${interval}s`, { icon: '⚡' });
     }
@@ -92,7 +101,7 @@ const NumberCaller = ({ game, room, onGameUpdate }) => {
 
   const isActive = game?.status === 'active';
   const isPaused = game?.status === 'paused';
-  const remaining = game?.remainingNumbers?.length ?? (90 - (game?.calledNumbers?.length ?? 0));
+  const remaining = game?._remaining ?? game?.remainingNumbers?.length ?? (90 - (game?.calledNumbers?.length ?? 0));
 
   return (
     <div className="card">

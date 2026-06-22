@@ -35,7 +35,12 @@ const startAutoCall = async (io, game) => {
     try {
       const called = await callNextNumber(game._id);
       if (!called) {
-        await stopAutoCall(game._id);
+        clearInterval(autoCallTimers.get(game._id.toString()));
+        autoCallTimers.delete(game._id.toString());
+        await Game.updateOne(
+          { _id: game._id },
+          { $set: { autoCallEnabled: false, nextAutoCallAt: null } }
+        ).catch(() => {});
         io.to(game.roomCode).emit('all_numbers_called', {});
         return;
       }
@@ -44,12 +49,21 @@ const startAutoCall = async (io, game) => {
       await called.save();
       emitNumber(io, called);
       if (called.remainingNumbers.length === 0) {
-        await stopAutoCall(game._id);
+        clearInterval(autoCallTimers.get(game._id.toString()));
+        autoCallTimers.delete(game._id.toString());
+        await Game.updateOne(
+          { _id: game._id },
+          { $set: { autoCallEnabled: false, nextAutoCallAt: null } }
+        ).catch(() => {});
         io.to(game.roomCode).emit('all_numbers_called', {});
       }
     } catch (error) {
       console.error('Auto call error:', error.message);
-      await stopAutoCall(game._id);
+      try {
+        await stopAutoCall(game._id);
+      } catch (stopErr) {
+        console.error('stopAutoCall error:', stopErr.message);
+      }
     }
   }, intervalMs);
 
