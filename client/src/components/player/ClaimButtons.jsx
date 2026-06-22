@@ -11,11 +11,11 @@ const CLAIM_TYPES = [
   { key: 'fullHouse', label: 'Full House', desc: 'All 15 matched', icon: '🏠', color: '#f59e0b' },
 ];
 
-const ClaimButtons = ({ gameId, claimedPrizes = {}, wonClaims = [], pointConfig = {} }) => {
+const ClaimButtons = ({ gameId, claimedPrizes = {}, wonClaims = [], pointConfig = {}, disabled = false }) => {
   const [claiming, setClaiming] = useState({});
 
   const handleClaim = async (claimType) => {
-    if (claiming[claimType]) return;
+    if (claiming[claimType] || disabled) return;
     setClaiming((prev) => ({ ...prev, [claimType]: true }));
     try {
       await submitClaim({ gameId, claimType });
@@ -92,16 +92,16 @@ const ClaimButtons = ({ gameId, claimedPrizes = {}, wonClaims = [], pointConfig 
                   <button
                     id={`claim-btn-${key}`}
                     onClick={() => handleClaim(key)}
-                    disabled={isClaiming}
+                    disabled={isClaiming || disabled}
                     style={{
                       padding: '0.3rem 0.75rem',
                       borderRadius: '6px',
                       border: 'none',
-                      background: isClaiming ? 'rgba(30,42,74,0.5)' : `linear-gradient(135deg, ${color}, ${color}cc)`,
-                      color: isClaiming ? '#64748b' : 'white',
+                      background: (isClaiming || disabled) ? 'rgba(30,42,74,0.5)' : `linear-gradient(135deg, ${color}, ${color}cc)`,
+                      color: (isClaiming || disabled) ? '#64748b' : 'white',
                       fontWeight: 600,
                       fontSize: '0.78rem',
-                      cursor: isClaiming ? 'not-allowed' : 'pointer',
+                      cursor: (isClaiming || disabled) ? 'not-allowed' : 'pointer',
                       transition: 'all 0.2s',
                       minHeight: '32px',
                       display: 'flex',
@@ -110,7 +110,7 @@ const ClaimButtons = ({ gameId, claimedPrizes = {}, wonClaims = [], pointConfig 
                       flexShrink: 0,
                     }}
                   >
-                    {isClaiming ? '...' : 'Claim!'}
+                    {disabled ? '📶' : isClaiming ? '...' : 'Claim!'}
                   </button>
                 )}
               </div>

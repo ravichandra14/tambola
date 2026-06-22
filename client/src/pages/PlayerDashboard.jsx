@@ -41,6 +41,9 @@ const PlayerDashboard = () => {
   const [finalScoreboard, setFinalScoreboard] = useState([]);
   // Mobile side panel tab
   const [sideTab, setSideTab] = useState('leaderboard');
+  // Track whether we lost connection mid-game
+  const [wasInGame, setWasInGame] = useState(false);
+  const prevConnected = useRef(connected);
 
   const audioCtxRef = useRef(null);
 
@@ -61,6 +64,17 @@ const PlayerDashboard = () => {
       osc.stop(ctx.currentTime + 0.3);
     } catch { /* Optional browser feature unavailable. */ }
   };
+
+  // Track reconnection mid-game and toast the player
+  useEffect(() => {
+    const isInGame = gameStatus === 'active' || gameStatus === 'paused';
+    if (isInGame) setWasInGame(true);
+
+    if (wasInGame && connected && !prevConnected.current) {
+      toast.success('Back online! Syncing game state…', { icon: '📶', duration: 3000 });
+    }
+    prevConnected.current = connected;
+  }, [connected, gameStatus, wasInGame]);
 
   const code = searchParams.get('code');
 
@@ -263,6 +277,28 @@ const PlayerDashboard = () => {
         {/* ── Game layout ── */}
         {(isActive || isPaused || isEnded) && (
           <>
+            {/* ── In-game offline banner ── */}
+            {!connected && wasInGame && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '0.625rem',
+                background: 'linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.08))',
+                border: '1px solid rgba(217,119,6,0.4)',
+                borderRadius: '0.75rem', padding: '0.75rem 1rem',
+                marginBottom: '1rem',
+              }}>
+                <span style={{ fontSize: '1.2rem' }}>📶</span>
+                <div>
+                  <div style={{ color: '#fbbf24', fontWeight: 700, fontSize: '0.875rem' }}>
+                    Connection lost — reconnecting…
+                  </div>
+                  <div style={{ color: '#d97706', fontSize: '0.75rem', marginTop: '2px' }}>
+                    Your ticket and progress are safe. Claims are disabled until reconnected.
+                  </div>
+                </div>
+                <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2, borderColor: 'rgba(251,191,36,0.3)', borderTopColor: '#fbbf24', marginLeft: 'auto', flexShrink: 0 }} />
+              </div>
+            )}
+
             {/* Desktop: two-column grid */}
             <div className="player-game-grid">
               {/* Left column */}
@@ -275,6 +311,7 @@ const PlayerDashboard = () => {
                     claimedPrizes={claimedPrizes}
                     wonClaims={wonClaims}
                     pointConfig={room?.pointConfig || game?.pointConfig}
+                    disabled={!connected}
                   />
                 )}
               </div>

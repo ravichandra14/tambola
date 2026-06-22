@@ -410,6 +410,11 @@ body {
   50% { opacity: 1; transform: scale(1.08); }
 }
 
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+  50% { opacity: 0.85; transform: scale(1.1); box-shadow: 0 0 0 4px rgba(74, 222, 128, 0); }
+}
+
 .animate-fade-in-up { animation: fadeInUp 0.5s ease forwards; }
 .animate-slide-in-right { animation: slideInRight 0.4s ease forwards; }
 .animate-slide-in-left { animation: slideInLeft 0.4s ease forwards; }
