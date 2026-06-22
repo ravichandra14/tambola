@@ -6,7 +6,8 @@ const CLAIM_LABELS = {
 };
 
 const LeaderboardPanel = ({ entries = [], title = 'Leaderboard' }) => {
-  const sorted = [...entries].sort((a, b) => b.score - a.score);
+  const getScore = (entry) => entry.score ?? entry.totalScore ?? 0;
+  const sorted = [...entries].sort((a, b) => getScore(b) - getScore(a));
 
   return (
     <div className="card">
@@ -50,7 +51,7 @@ const LeaderboardPanel = ({ entries = [], title = 'Leaderboard' }) => {
                     <div style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {entry.username}
                     </div>
-                    {entry.claimsWon?.length > 0 && (
+                    {Array.isArray(entry.claimsWon) && entry.claimsWon.length > 0 && (
                       <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
                         {entry.claimsWon.map((c) => (
                           <span key={c} className="badge badge-purple" style={{ fontSize: '0.6rem', padding: '1px 5px' }}>
@@ -59,12 +60,17 @@ const LeaderboardPanel = ({ entries = [], title = 'Leaderboard' }) => {
                         ))}
                       </div>
                     )}
+                    {typeof entry.claimsWon === 'number' && entry.claimsWon > 0 && (
+                      <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: '2px' }}>
+                        🏆 {entry.claimsWon} claims won
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Score */}
                 <div style={{ textAlign: 'right', fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: rank === 1 ? '#fbbf24' : rank === 2 ? '#94a3b8' : rank === 3 ? '#d97706' : '#6366f1', fontSize: '1.1rem' }}>
-                  {entry.score}
+                  {getScore(entry)}
                   <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 400, fontFamily: 'Inter' }}>pts</div>
                 </div>
               </motion.div>
