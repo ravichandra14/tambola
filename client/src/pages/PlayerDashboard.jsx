@@ -41,9 +41,8 @@ const PlayerDashboard = () => {
   const [finalScoreboard, setFinalScoreboard] = useState([]);
   // Mobile side panel tab
   const [sideTab, setSideTab] = useState('leaderboard');
-  // Track whether we lost connection mid-game
-  const [wasInGame, setWasInGame] = useState(false);
-  const prevConnected = useRef(connected);
+  // Track previous connected value to detect reconnection events
+  const prevConnected = useRef(false);
 
   const audioCtxRef = useRef(null);
 
@@ -65,16 +64,14 @@ const PlayerDashboard = () => {
     } catch { /* Optional browser feature unavailable. */ }
   };
 
-  // Track reconnection mid-game and toast the player
+  // Toast player when they reconnect mid-game
   useEffect(() => {
     const isInGame = gameStatus === 'active' || gameStatus === 'paused';
-    if (isInGame) setWasInGame(true);
-
-    if (wasInGame && connected && !prevConnected.current) {
+    if (connected && !prevConnected.current && isInGame) {
       toast.success('Back online! Syncing game state…', { icon: '📶', duration: 3000 });
     }
     prevConnected.current = connected;
-  }, [connected, gameStatus, wasInGame]);
+  }, [connected, gameStatus]);
 
   const code = searchParams.get('code');
 
@@ -278,7 +275,7 @@ const PlayerDashboard = () => {
         {(isActive || isPaused || isEnded) && (
           <>
             {/* ── In-game offline banner ── */}
-            {!connected && wasInGame && (
+            {(isActive || isPaused) && !connected && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '0.625rem',
                 background: 'linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.08))',
