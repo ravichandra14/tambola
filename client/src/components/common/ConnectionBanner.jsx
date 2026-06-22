@@ -1,8 +1,34 @@
+import { useEffect, useState } from 'react';
 import { useSocket } from '../../context/SocketContext';
 
 const ConnectionBanner = () => {
-  const { online, connected } = useSocket();
-  if (online && connected) return null;
+  const { online, connected, socket } = useSocket();
+  // Only show banner if the user has an active socket (i.e., is logged in)
+  // and has been connected before but lost connection.
+  // A 2-second grace period prevents flashing on initial page load.
+  const [showBanner, setShowBanner] = useState(false);
+  const [wasConnected, setWasConnected] = useState(false);
+
+  useEffect(() => {
+    if (connected) {
+      setWasConnected(true);
+      setShowBanner(false);
+      return;
+    }
+    // No socket at all (not logged in) — never show banner
+    if (!socket) {
+      setShowBanner(false);
+      return;
+    }
+    // Socket exists but not yet connected — wait grace period before showing
+    const timer = setTimeout(() => {
+      // Only show if we had a prior connection (avoids initial-load flash)
+      if (wasConnected) setShowBanner(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [connected, socket, wasConnected]);
+
+  if (!showBanner || (online && connected)) return null;
 
   return (
     <div
