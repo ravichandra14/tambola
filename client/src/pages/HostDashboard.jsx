@@ -120,7 +120,10 @@ const HostDashboard = () => {
     const onClaimSubmitted = (data) => { setClaims((prev) => [...prev, data.claim]); toast(`${data.claim?.player?.username} submitted ${data.claim?.claimType} claim!`, { icon: '🎯' }); };
     const onClaimApproved = (data) => { setClaims((prev) => prev.filter((c) => c._id !== data.claim._id)); setLeaderboard(data.leaderboard || []); };
     const onClaimRejected = (data) => { setClaims((prev) => prev.filter((c) => c._id !== data.claim._id)); };
-    const onGameStarted = (data) => { setGame(data.game); };
+    const onGameStarted = (data) => {
+      setGame(data.game);
+      setRoom((prev) => prev ? { ...prev, status: 'active' } : prev);
+    };
     const onGamePaused = () => setGame((g) => g ? { ...g, status: 'paused' } : g);
     const onGameResumed = () => setGame((g) => g ? { ...g, status: 'active' } : g);
     const onGameEnded = (data) => {
@@ -174,6 +177,7 @@ const HostDashboard = () => {
     try {
       const res = await startGame(room._id);
       setGame(res.data.game);
+      setRoom((prev) => prev ? { ...prev, status: 'active' } : prev);
       toast.success('Game started! 🎉');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to start game');
@@ -201,7 +205,7 @@ const HostDashboard = () => {
     setClaims((prev) => prev.filter((c) => c._id !== claimId));
   };
 
-  const isWaiting = !game || room?.status === 'waiting';
+  const isWaiting = !game;
   const isActive = game?.status === 'active' || game?.status === 'paused';
 
   if (loading) return (
