@@ -83,20 +83,17 @@ const PlayerDashboard = () => {
       };
 
       const now = ctx.currentTime;
-      // Triumphant arpeggio: C5 -> E5 -> G5 -> C6
       const notes = [
         { f: 523.25, t: 0 },    // C5
         { f: 659.25, t: 0.12 }, // E5
         { f: 783.99, t: 0.24 }, // G5
         { f: 1046.50, t: 0.36 } // C6
       ];
-
       notes.forEach((note, index) => {
         const isLast = index === notes.length - 1;
         const duration = isLast ? 0.8 : 0.15;
-        // Layer a sine and a triangle wave for a richer, magical chime sound
-        playTone(note.f, 'sine', now + note.t, duration, 0.15);
-        playTone(note.f * 2, 'triangle', now + note.t, duration, 0.05); // octave higher for sparkle
+        playTone(note.f, 'square', now + note.t, duration, 0.08);
+        playTone(note.f, 'sawtooth', now + note.t, duration, 0.08);
       });
     } catch { /* Optional browser feature unavailable. */ }
   };
@@ -120,20 +117,10 @@ const PlayerDashboard = () => {
       };
 
       const now = ctx.currentTime;
-      // Grand finale: C4 -> G4 -> C5 -> E5 -> G5 (held)
-      const notes = [
-        { f: 261.63, t: 0 },    // C4
-        { f: 392.00, t: 0.15 }, // G4
-        { f: 523.25, t: 0.3 },  // C5
-        { f: 659.25, t: 0.45 }, // E5
-        { f: 783.99, t: 0.6 }   // G5
-      ];
-
-      notes.forEach((note, index) => {
-        const isLast = index === notes.length - 1;
-        const duration = isLast ? 2.0 : 0.2;
-        playTone(note.f, 'sine', now + note.t, duration, 0.2);
-        playTone(note.f, 'triangle', now + note.t, duration, 0.1);
+      const notes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+      notes.forEach((freq, i) => {
+        playTone(freq, 'sine', now + i * 0.06, 0.3, 0.15);
+        playTone(freq * 2, 'triangle', now + i * 0.06, 0.3, 0.05);
       });
     } catch { /* */ }
   };

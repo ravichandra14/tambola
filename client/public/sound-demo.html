@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sound Demo</title>
+  <style>
+    body { font-family: 'Space Grotesk', sans-serif; padding: 3rem; background: #0f0f1a; color: white; text-align: center; }
+    h1 { color: #e2e8f0; font-size: 2.5rem; margin-bottom: 0.5rem; }
+    p { color: #94a3b8; font-size: 1.1rem; margin-bottom: 3rem; }
+    .btn-group { display: flex; flex-direction: column; gap: 1.5rem; align-items: center; max-width: 400px; margin: 0 auto; }
+    button { 
+      padding: 1.25rem 2rem; 
+      font-size: 1.1rem; 
+      font-weight: 700;
+      cursor: pointer; 
+      border-radius: 12px; 
+      border: 1px solid rgba(99,102,241,0.5); 
+      background: rgba(99,102,241,0.1); 
+      color: #818cf8; 
+      width: 100%;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    button:hover { 
+      background: rgba(99,102,241,0.2); 
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99,102,241,0.2);
+    }
+  </style>
+</head>
+<body>
+  <h1>🎉 Celebration Sound Demos</h1>
+  <p>Click the buttons below to hear the different options for the "Claim Approved" sound. Let me know which one you prefer!</p>
+  
+  <div class="btn-group">
+    <button onclick="playAudio('https://actions.google.com/sounds/v1/crowds/kids_cheering.ogg')">🎉 Option 4: Kids Cheering (Real Audio)</button>
+    <button onclick="playAudio('https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg')">🎺 Option 5: Bugle Fanfare (Real Audio)</button>
+    <button onclick="playTaDa()">🎶 Option 6: Synthesized "Ta-Da!" Chord</button>
+    <button onclick="playPayout()">💰 Option 7: Slot Machine Payout</button>
+    
+    <hr style="width:100%; border:1px solid #333; margin: 1rem 0;">
+    
+    <button onclick="playFanfare()" style="opacity: 0.7; font-size: 0.9rem;">Option 1: Triumphant Fanfare (Synth)</button>
+    <button onclick="playSparkle()" style="opacity: 0.7; font-size: 0.9rem;">Option 2: Magical Sparkle (Synth)</button>
+    <button onclick="playArcade()" style="opacity: 0.7; font-size: 0.9rem;">Option 3: Arcade Jackpot (Synth)</button>
+  </div>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const playTone = (freq, type, startTime, duration, vol) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(vol, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    function playFanfare() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      // Fast sweeping major arpeggio followed by sustained chord using square/sawtooth for a brassy feel
+      const notes = [
+        { f: 523.25, t: 0 },    // C5
+        { f: 659.25, t: 0.12 }, // E5
+        { f: 783.99, t: 0.24 }, // G5
+        { f: 1046.50, t: 0.36 } // C6
+      ];
+      notes.forEach((note, index) => {
+        const isLast = index === notes.length - 1;
+        const duration = isLast ? 0.8 : 0.15;
+        playTone(note.f, 'square', now + note.t, duration, 0.08);
+        playTone(note.f, 'sawtooth', now + note.t, duration, 0.08);
+      });
+    }
+
+    function playSparkle() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      // Rapid ascending pentatonic scale with sine and high triangle
+      const notes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+      notes.forEach((freq, i) => {
+        playTone(freq, 'sine', now + i * 0.06, 0.3, 0.15);
+        playTone(freq * 2, 'triangle', now + i * 0.06, 0.3, 0.05);
+      });
+    }
+
+    function playArcade() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'square'; // chiptune style
+      
+      // Fast stepping arpeggio
+      osc.frequency.setValueAtTime(440, now); // A4
+      osc.frequency.setValueAtTime(554.37, now + 0.1); // C#5
+      osc.frequency.setValueAtTime(659.25, now + 0.2); // E5
+      osc.frequency.setValueAtTime(880, now + 0.3); // A5
+      osc.frequency.setValueAtTime(1108.73, now + 0.4); // C#6
+      
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+      
+      osc.start(now);
+      osc.stop(now + 0.6);
+    }
+
+    function playTaDa() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      // First short note (C major)
+      [261.63, 329.63, 392.00].forEach(f => playTone(f, 'square', now, 0.15, 0.05));
+      [261.63, 329.63, 392.00].forEach(f => playTone(f, 'sawtooth', now, 0.15, 0.05));
+      
+      // Big final chord slightly after (C major octave higher + base)
+      [261.63, 329.63, 392.00, 523.25].forEach(f => playTone(f, 'square', now + 0.2, 1.2, 0.05));
+      [261.63, 329.63, 392.00, 523.25].forEach(f => playTone(f, 'sawtooth', now + 0.2, 1.2, 0.05));
+    }
+
+    function playPayout() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      for (let i = 0; i < 20; i++) {
+        const freq = 400 + Math.random() * 600;
+        playTone(freq, 'sine', now + i * 0.06, 0.15, 0.05);
+        playTone(freq * 1.5, 'triangle', now + i * 0.06, 0.15, 0.05);
+      }
+    }
+
+    function playAudio(url) {
+      const audio = new Audio(url);
+      audio.play();
+    }
+  </script>
+</body>
+</html>

@@ -72,22 +72,46 @@ const HostDashboard = () => {
       };
 
       const now = ctx.currentTime;
-      // Triumphant arpeggio: C5 -> E5 -> G5 -> C6
       const notes = [
         { f: 523.25, t: 0 },    // C5
         { f: 659.25, t: 0.12 }, // E5
         { f: 783.99, t: 0.24 }, // G5
         { f: 1046.50, t: 0.36 } // C6
       ];
-
       notes.forEach((note, index) => {
         const isLast = index === notes.length - 1;
         const duration = isLast ? 0.8 : 0.15;
-        // Layer a sine and a triangle wave for a richer, magical chime sound
-        playTone(note.f, 'sine', now + note.t, duration, 0.15);
-        playTone(note.f * 2, 'triangle', now + note.t, duration, 0.05); // octave higher for sparkle
+        playTone(note.f, 'square', now + note.t, duration, 0.08);
+        playTone(note.f, 'sawtooth', now + note.t, duration, 0.08);
       });
     } catch { /* Optional browser feature unavailable. */ }
+  };
+
+  const playGameOverSound = () => {
+    try {
+      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
+      
+      const playTone = (freq, type, startTime, duration, vol) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(vol, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+
+      const now = ctx.currentTime;
+      const notes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+      notes.forEach((freq, i) => {
+        playTone(freq, 'sine', now + i * 0.06, 0.3, 0.15);
+        playTone(freq * 2, 'triangle', now + i * 0.06, 0.3, 0.05);
+      });
+    } catch { /* */ }
   };
 
   const roomCode = searchParams.get('room');
@@ -167,6 +191,7 @@ const HostDashboard = () => {
       setGame((g) => g ? { ...g, status: 'ended' } : g);
       setFinalScoreboard(data.finalScoreboard || []);
       setShowFinalModal(true);
+      playGameOverSound();
       confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
     };
     const onWinnerAnnounced = (data) => {
