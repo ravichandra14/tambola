@@ -34,7 +34,9 @@ export const SocketProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const nextSocket = io('/', {
+    const backendUrl = import.meta.env.VITE_API_URL || '/';
+
+    const nextSocket = io(backendUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
