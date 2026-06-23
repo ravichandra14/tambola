@@ -205,8 +205,9 @@ const HostDashboard = () => {
     setClaims((prev) => prev.filter((c) => c._id !== claimId));
   };
 
-  const isWaiting = !game;
+  const isWaiting = !game || game?.status === 'waiting';
   const isActive = game?.status === 'active' || game?.status === 'paused';
+  const isEnded = game?.status === 'ended';
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f1a', flexDirection: 'column', gap: '1rem' }}>
@@ -257,7 +258,7 @@ const HostDashboard = () => {
         <div className="host-game-grid">
           {/* Left column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-            {isActive ? (
+            {isActive || isEnded ? (
               <>
                 <NumberBoard calledNumbers={calledNumbers} currentNumber={currentNumber} />
                 <LeaderboardPanel entries={leaderboard} />
@@ -292,9 +293,9 @@ const HostDashboard = () => {
 
           {/* Right column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-            {isActive && <NumberCaller game={game} room={room} onGameUpdate={setGame} />}
-            <PlayerList players={players} hostId={user?._id} roomCode={room?.roomCode} gameActive={isActive} />
-            {isActive && <ClaimsPanel claims={claims} onClaimsUpdate={handleClaimsUpdate} />}
+            {(isActive || isEnded) && <NumberCaller game={game} room={room} onGameUpdate={setGame} />}
+            <PlayerList players={players} hostId={user?._id} roomCode={room?.roomCode} gameActive={isActive || isEnded} />
+            {(isActive || isEnded) && <ClaimsPanel claims={claims} onClaimsUpdate={handleClaimsUpdate} />}
             <Chat roomCode={room?.roomCode} initialMessages={chatMessages} />
           </div>
         </div>

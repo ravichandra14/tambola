@@ -101,6 +101,7 @@ const NumberCaller = ({ game, room, onGameUpdate }) => {
 
   const isActive = game?.status === 'active';
   const isPaused = game?.status === 'paused';
+  const isEnded = game?.status === 'ended';
   const remaining = game?._remaining ?? game?.remainingNumbers?.length ?? (90 - (game?.calledNumbers?.length ?? 0));
 
   return (
@@ -148,35 +149,37 @@ const NumberCaller = ({ game, room, onGameUpdate }) => {
       </div>
 
       {/* Mode selector */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-        <button
-          className={`btn-outline`}
-          style={{
-            flex: 1, fontSize: '0.8rem', padding: '0.5rem',
-            background: !autoMode ? 'rgba(99,102,241,0.15)' : 'transparent',
-            borderColor: !autoMode ? '#6366f1' : 'rgba(99,102,241,0.3)',
-            color: !autoMode ? '#818cf8' : '#64748b'
-          }}
-          onClick={() => { setAutoMode(false); if (autoRunning) { emit('stop_auto_call', { gameId: game._id }); setAutoRunning(false); } }}
-        >
-          Manual
-        </button>
-        <button
-          className="btn-outline"
-          style={{
-            flex: 1, fontSize: '0.8rem', padding: '0.5rem',
-            background: autoMode ? 'rgba(99,102,241,0.15)' : 'transparent',
-            borderColor: autoMode ? '#6366f1' : 'rgba(99,102,241,0.3)',
-            color: autoMode ? '#818cf8' : '#64748b'
-          }}
-          onClick={() => setAutoMode(true)}
-        >
-          Auto
-        </button>
-      </div>
+      {!isEnded && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button
+            className={`btn-outline`}
+            style={{
+              flex: 1, fontSize: '0.8rem', padding: '0.5rem',
+              background: !autoMode ? 'rgba(99,102,241,0.15)' : 'transparent',
+              borderColor: !autoMode ? '#6366f1' : 'rgba(99,102,241,0.3)',
+              color: !autoMode ? '#818cf8' : '#64748b'
+            }}
+            onClick={() => { setAutoMode(false); if (autoRunning) { emit('stop_auto_call', { gameId: game._id }); setAutoRunning(false); } }}
+          >
+            Manual
+          </button>
+          <button
+            className="btn-outline"
+            style={{
+              flex: 1, fontSize: '0.8rem', padding: '0.5rem',
+              background: autoMode ? 'rgba(99,102,241,0.15)' : 'transparent',
+              borderColor: autoMode ? '#6366f1' : 'rgba(99,102,241,0.3)',
+              color: autoMode ? '#818cf8' : '#64748b'
+            }}
+            onClick={() => setAutoMode(true)}
+          >
+            Auto
+          </button>
+        </div>
+      )}
 
       {/* Auto interval */}
-      {autoMode && (
+      {!isEnded && autoMode && (
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.375rem' }}>Interval</div>
           <div style={{ display: 'flex', gap: '0.375rem' }}>
