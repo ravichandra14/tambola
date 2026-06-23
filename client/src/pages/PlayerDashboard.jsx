@@ -64,6 +64,80 @@ const PlayerDashboard = () => {
     } catch { /* Optional browser feature unavailable. */ }
   };
 
+  const playWinSound = () => {
+    try {
+      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
+      
+      const playTone = (freq, type, startTime, duration, vol) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(vol, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+
+      const now = ctx.currentTime;
+      // Triumphant arpeggio: C5 -> E5 -> G5 -> C6
+      const notes = [
+        { f: 523.25, t: 0 },    // C5
+        { f: 659.25, t: 0.12 }, // E5
+        { f: 783.99, t: 0.24 }, // G5
+        { f: 1046.50, t: 0.36 } // C6
+      ];
+
+      notes.forEach((note, index) => {
+        const isLast = index === notes.length - 1;
+        const duration = isLast ? 0.8 : 0.15;
+        // Layer a sine and a triangle wave for a richer, magical chime sound
+        playTone(note.f, 'sine', now + note.t, duration, 0.15);
+        playTone(note.f * 2, 'triangle', now + note.t, duration, 0.05); // octave higher for sparkle
+      });
+    } catch { /* Optional browser feature unavailable. */ }
+  };
+
+  const playGameOverSound = () => {
+    try {
+      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
+      
+      const playTone = (freq, type, startTime, duration, vol) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(vol, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+
+      const now = ctx.currentTime;
+      // Grand finale: C4 -> G4 -> C5 -> E5 -> G5 (held)
+      const notes = [
+        { f: 261.63, t: 0 },    // C4
+        { f: 392.00, t: 0.15 }, // G4
+        { f: 523.25, t: 0.3 },  // C5
+        { f: 659.25, t: 0.45 }, // E5
+        { f: 783.99, t: 0.6 }   // G5
+      ];
+
+      notes.forEach((note, index) => {
+        const isLast = index === notes.length - 1;
+        const duration = isLast ? 2.0 : 0.2;
+        playTone(note.f, 'sine', now + note.t, duration, 0.2);
+        playTone(note.f, 'triangle', now + note.t, duration, 0.1);
+      });
+    } catch { /* */ }
+  };
+
   // Toast player when they reconnect mid-game
   useEffect(() => {
     const isInGame = gameStatus === 'active' || gameStatus === 'paused';
@@ -142,6 +216,7 @@ const PlayerDashboard = () => {
         setWonClaims((prev) => [...prev, data.claim.claimType]);
         setClaimedPrizes((prev) => ({ ...prev, [data.claim.claimType]: true }));
         toast.success(`Your ${data.claim.claimType} claim was approved! +${data.claim.pointsAwarded} pts 🎉`, { duration: 5000 });
+        playWinSound();
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       } else {
         setClaimedPrizes((prev) => ({ ...prev, [data.claim.claimType]: true }));
@@ -156,6 +231,7 @@ const PlayerDashboard = () => {
     const onWinnerAnnounced = (data) => {
       setWinnerInfo(data); setShowWinnerModal(true);
       if (data.winner?._id === user?._id || data.winner === user?._id) {
+        playWinSound();
         confetti({ particleCount: 200, spread: 120, origin: { y: 0.5 } });
       }
       setTimeout(() => setShowWinnerModal(false), 5000);
@@ -167,6 +243,7 @@ const PlayerDashboard = () => {
       setGameStatus('ended');
       setFinalScoreboard(data.finalScoreboard || []);
       setShowFinalModal(true);
+      playGameOverSound();
       confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
     };
     const onPlayerRemoved = (data) => {
