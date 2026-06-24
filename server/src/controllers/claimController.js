@@ -135,6 +135,30 @@ const approveClaim = async (req, res, next) => {
     claim.resolvedBy = req.user._id;
     await claim.save();
 
+    // Reject all other pending claims of the same type for this game
+    const otherPendingClaims = await Claim.find({
+      game: claim.game,
+      claimType: claim.claimType,
+      status: 'pending',
+      _id: { $ne: claim._id }
+    }).populate('player', 'username avatar');
+
+    if (otherPendingClaims.length > 0) {
+      const now = new Date();
+      await Claim.updateMany(
+        { _id: { $in: otherPendingClaims.map(c => c._id) } },
+        { $set: { status: 'rejected', resolvedAt: now, resolvedBy: req.user._id } }
+      );
+      
+      // Emit rejection events so host and players see them disappear
+      otherPendingClaims.forEach(c => {
+        getIO().to(game.roomCode).emit('claim_rejected', {
+          claim: { _id: c._id, claimType: c.claimType, player: c.player },
+          reason: 'Prize already claimed by another player'
+        });
+      });
+    }
+
     // Update leaderboard
     const leaderboard = await Leaderboard.findOne({ game: claim.game });
     if (leaderboard) {
